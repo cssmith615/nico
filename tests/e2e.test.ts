@@ -37,15 +37,19 @@ vi.mock("@anthropic-ai/sdk", () => ({
         }
 
         if (content.includes("PAYLOADS TO TRY") || content.includes("/workspace/evidence.json")) {
-          // Exploit generator — return a curl script that passes validator
+          // Exploit generator — must be valid bash so `bash -n` passes on Linux runners.
+          // Heredoc avoids the quote-balancing problem of inlining the SQLi payload in echo.
+          const script = [
+            "#!/bin/bash",
+            'PAYLOADS=("\' OR 1=1--")',
+            'curl -s "http://t/api/users?id=1" > /tmp/r',
+            "cat > /workspace/evidence.json <<'EVIDENCE'",
+            '{"confirmed":true,"payload":"\' OR 1=1--","response":"syntax error","statusCode":500}',
+            "EVIDENCE",
+            "",
+          ].join("\n");
           return {
-            content: [
-              {
-                type: "text",
-                text:
-                  '#!/bin/bash\nPAYLOADS=("\' OR 1=1--")\ncurl -s "http://t/api/users?id=1" > /tmp/r\necho \'{"confirmed":true,"payload":"\' OR 1=1--","response":"syntax error","statusCode":500}\' > /workspace/evidence.json\n',
-              },
-            ],
+            content: [{ type: "text", text: script }],
           };
         }
 

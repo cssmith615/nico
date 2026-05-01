@@ -41,7 +41,7 @@ pnpm install
 cp .env.example .env  # add ANTHROPIC_API_KEY
 ```
 
-Requires Node 18+, pnpm, Docker, and an Anthropic API key.
+Requires Node 20+, pnpm, Docker, and an Anthropic API key.
 
 ## Usage
 
