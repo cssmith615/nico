@@ -82,6 +82,7 @@ jobs:
       - name: Run Nico reusable Action
         uses: ./
         env:
+          NICO_DETERMINISTIC_SQLI: "1"
           NICO_DOCKER_NETWORK: host
         with:
           target-url: http://localhost:3000

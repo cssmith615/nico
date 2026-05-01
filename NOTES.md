@@ -22,6 +22,7 @@ Multi-agent handoff doc. Cold-start agents read this first.
 - **Linux sandbox loopback fix (Codex).** GitHub smoke run `25230004438` generated/reran SQLi exploits but confirmed 0 because `localhost:3000` inside the exploit container resolved to the sandbox container on Linux. `adaptForDocker` now rewrites `localhost` and `127.0.0.1` to `host.docker.internal` on all platforms; the Docker runner already maps that host alias with `--add-host=host.docker.internal:host-gateway`.
 - **Configurable sandbox network (Codex).** GitHub runner networking still did not expose the host alias to the sandbox reliably, so `NICO_DOCKER_NETWORK` can now override the sandbox network. The Action smoke workflow sets `NICO_DOCKER_NETWORK=host` so `localhost:3000` reaches the runner-local Juice Shop. Default remains `bridge`.
 - **Pinned Juice Shop smoke image (Codex).** The Action smoke workflow pins `bkimminich/juice-shop@sha256:a8139c141311c7f31fcf2e611125246928f703ee42827de33983fd9425d1b2f6`, matching the local image that confirmed the OpenAPI SQLi smoke scan.
+- **Deterministic SQLi smoke mode (Codex).** `NICO_DETERMINISTIC_SQLI=1` makes SQLi exploit generation use a built-in curl proof instead of a fresh model script. The Action smoke workflow enables it so severity-gate validation depends on a live exploit result, not model-output variance.
 
 ### 0.5 still open
 
