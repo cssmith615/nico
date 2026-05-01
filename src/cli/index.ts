@@ -7,6 +7,7 @@ import type { ScanConfig } from "../types/index.js";
 import { runOrchestrator } from "../orchestrator/index.js";
 import { generateExploits } from "../exploit/index.js";
 import { ensureSandbox, runExploits } from "../execution/index.js";
+import { validateResults, confirmedOnly } from "../validation/index.js";
 
 const program = new Command();
 
@@ -126,6 +127,33 @@ program
         }
       } else {
         console.log(chalk.green(`  ✓ not exploitable`) + chalk.dim(` ${vector?.route ?? r.vectorId}`));
+      }
+    }
+
+    const spinner5 = ora("Validating results...").start();
+    let findings;
+    try {
+      findings = await validateResults(results, vectors, scripts);
+      const confirmed = confirmedOnly(findings);
+      spinner5.succeed(
+        `Validation complete — ${confirmed.length} confirmed finding${confirmed.length !== 1 ? "s" : ""} of ${findings.length} total`
+      );
+    } catch (err) {
+      spinner5.fail("Validation failed");
+      console.error(chalk.red(err instanceof Error ? err.message : String(err)));
+      process.exit(1);
+    }
+
+    console.log();
+    for (const f of findings) {
+      if (f.verdict === "confirmed") {
+        console.log(chalk.red.bold(`  [CONFIRMED]  `) + `${f.vector.method} ${f.vector.route}`);
+        console.log(chalk.dim(`               ${f.reasoning}`));
+      } else if (f.verdict === "inconclusive") {
+        console.log(chalk.yellow(`  [INCONCLUSIVE] `) + `${f.vector.method} ${f.vector.route}`);
+        console.log(chalk.dim(`               ${f.reasoning}`));
+      } else {
+        console.log(chalk.green(`  [CLEAN]      `) + chalk.dim(`${f.vector.method} ${f.vector.route}`));
       }
     }
 
