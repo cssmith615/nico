@@ -6,6 +6,7 @@ import { VulnClass } from "../types/index.js";
 import type { ScanConfig } from "../types/index.js";
 import { runOrchestrator } from "../orchestrator/index.js";
 import { generateExploits } from "../exploit/index.js";
+import { ensureSandbox, runExploits } from "../execution/index.js";
 
 const program = new Command();
 
@@ -93,7 +94,42 @@ program
       );
     }
 
-    console.log(chalk.dim("\n  Execution sandbox: Sprint 3\n"));
+    const spinner3 = ora("Preparing sandbox...").start();
+    try {
+      await ensureSandbox();
+      spinner3.succeed("Sandbox ready");
+    } catch (err) {
+      spinner3.fail("Sandbox build failed — is Docker running?");
+      console.error(chalk.red(err instanceof Error ? err.message : String(err)));
+      process.exit(1);
+    }
+
+    const spinner4 = ora(`Running ${scripts.length} exploit${scripts.length !== 1 ? "s" : ""} in sandbox...`).start();
+    let results;
+    try {
+      results = await runExploits(scripts, config.timeoutMs, config.maxRetries);
+      const confirmed = results.filter((r) => r.confirmed).length;
+      spinner4.succeed(`Sandbox complete — ${confirmed} confirmed, ${results.length - confirmed} unconfirmed`);
+    } catch (err) {
+      spinner4.fail("Sandbox execution failed");
+      console.error(chalk.red(err instanceof Error ? err.message : String(err)));
+      process.exit(1);
+    }
+
+    console.log();
+    for (const r of results) {
+      const vector = vectors.find((v) => v.id === r.vectorId);
+      if (r.confirmed) {
+        console.log(chalk.red.bold(`  ✗ CONFIRMED`) + chalk.dim(` ${vector?.route ?? r.vectorId}`));
+        if (r.evidence.responseBody) {
+          console.log(chalk.dim(`    ${r.evidence.responseBody.slice(0, 120)}`));
+        }
+      } else {
+        console.log(chalk.green(`  ✓ not exploitable`) + chalk.dim(` ${vector?.route ?? r.vectorId}`));
+      }
+    }
+
+    console.log(chalk.dim("\n  Reporter: Sprint 5\n"));
   });
 
 program.parse();

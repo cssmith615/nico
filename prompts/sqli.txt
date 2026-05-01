@@ -22,12 +22,12 @@ REQUIREMENTS:
   - Response contains SQL error keywords: error, syntax, mysql, postgres, sqlite, ora-, unclosed, unterminated
   - OR response returns data that should not be accessible (more rows than expected)
   - OR response time exceeds 2s (for time-based blind)
-- Write evidence to /tmp/evidence.json:
+- Write evidence to /workspace/evidence.json:
   {
     "confirmed": true/false,
-    "payload": "<working payload or empty>",
+    "payload": "<working payload or empty string>",
     "response": "<truncated response body, max 500 chars>",
-    "statusCode": <http status code>
+    "statusCode": <http status code as integer>
   }
 
 FOR CURL SCRIPTS:

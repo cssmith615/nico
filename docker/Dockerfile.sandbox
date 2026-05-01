@@ -1,9 +1,7 @@
 FROM mcr.microsoft.com/playwright:v1.40.0-jammy
 
-WORKDIR /sandbox
+WORKDIR /workspace
 
-RUN apt-get update && apt-get install -y curl jq && rm -rf /var/lib/apt/lists/*
-
-COPY sandbox-runner.js .
-
-ENTRYPOINT ["node", "sandbox-runner.js"]
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl jq python3 \
+    && rm -rf /var/lib/apt/lists/*

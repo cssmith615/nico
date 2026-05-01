@@ -22,14 +22,14 @@ REQUIREMENTS:
   - A dialog (alert) is triggered on the page
   - OR the payload appears unescaped in the rendered DOM
   - OR document.domain is reflected in page content
-- Write evidence to /tmp/evidence.json:
+- Write evidence to /workspace/evidence.json:
   {
     "confirmed": true/false,
     "payload": "<working payload or empty>",
     "response": "<relevant page snippet, max 500 chars>",
     "statusCode": 200
   }
-- Also save a screenshot to /tmp/evidence.png if confirmed
+- Also save a screenshot to /workspace/evidence.png if confirmed
 
 FOR PLAYWRIGHT SCRIPTS:
 - Use Node.js with the playwright package (already installed)
