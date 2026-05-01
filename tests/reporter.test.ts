@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { scoreFinding } from "../src/reporter/severity.js";
 import { renderMarkdown } from "../src/reporter/markdown.js";
 import { buildReportJson } from "../src/reporter/json.js";
+import { renderHtml } from "../src/reporter/html.js";
 import { generateReport } from "../src/reporter/index.js";
 import type { ValidatedFinding } from "../src/validation/index.js";
 import type { AttackVector, ExploitResult, ExploitScript, ScanConfig } from "../src/types/index.js";
@@ -215,6 +216,101 @@ describe("buildReportJson", () => {
   });
 });
 
+describe("renderHtml", () => {
+  const config = makeConfig("/ignored");
+  const now = new Date("2026-05-01T14:22:09Z");
+
+  it("renders a self-contained document with no external scripts or stylesheets", () => {
+    const f = makeFinding();
+    const html = renderHtml([{ finding: f, severity: scoreFinding(f) }], [], config, now);
+    expect(html).toContain("<!DOCTYPE html>");
+    expect(html).toContain("<style>");
+    // No external scripts/stylesheets — everything must be inline
+    expect(html).not.toMatch(/<link[^>]+rel=["']stylesheet/);
+    expect(html).not.toMatch(/<script[^>]+src=/);
+  });
+
+  it("includes severity counts in summary cards", () => {
+    const a = makeFinding({ vector: makeVector({ id: "a", vulnClass: "auth", route: "/admin/users", riskScore: 9 }) });
+    const b = makeFinding({ vector: makeVector({ id: "b", vulnClass: "xss", riskScore: 4 }) });
+    const html = renderHtml(
+      [
+        { finding: a, severity: scoreFinding(a) },
+        { finding: b, severity: scoreFinding(b) },
+      ],
+      [],
+      config,
+      now
+    );
+    expect(html).toContain('class="count-card critical"');
+    expect(html).toContain('class="count-card medium"');
+  });
+
+  it("HTML-escapes user-controlled content to prevent XSS", () => {
+    const f = makeFinding({
+      vector: makeVector({
+        route: "/api/<script>alert(1)</script>",
+        notes: "<img src=x onerror=alert(1)>",
+      }),
+      script: makeScript({ payload: "</script><script>bad()</script>" }),
+    });
+    const html = renderHtml([{ finding: f, severity: scoreFinding(f) }], [], config, now);
+    expect(html).not.toContain("<script>alert(1)");
+    expect(html).not.toContain("<img src=x onerror=");
+    expect(html).not.toContain("<script>bad()</script>");
+    expect(html).toContain("&lt;script&gt;alert(1)");
+  });
+
+  it("renders empty state when no confirmed findings", () => {
+    const html = renderHtml([], [], config, now);
+    expect(html).toContain("No confirmed vulnerabilities");
+    // Filter controls and JS should be omitted when there's nothing to filter
+    expect(html).not.toContain('id="q"');
+  });
+
+  it("includes inconclusive table when present", () => {
+    const incon = makeFinding({ verdict: "inconclusive", reasoning: "ambiguous diff" });
+    const html = renderHtml([], [incon], config, now);
+    expect(html).toContain("Inconclusive");
+    expect(html).toContain("ambiguous diff");
+  });
+
+  it("sorts findings critical-first via severity-ordered output", () => {
+    const a = makeFinding({ vector: makeVector({ id: "a-low", vulnClass: "xss", riskScore: 4 }) });
+    const b = makeFinding({ vector: makeVector({ id: "b-crit", vulnClass: "auth", route: "/admin/x", riskScore: 9 }) });
+    const html = renderHtml(
+      [
+        { finding: a, severity: scoreFinding(a) },
+        { finding: b, severity: scoreFinding(b) },
+      ],
+      [],
+      config,
+      now
+    );
+    const critIdx = html.indexOf('data-severity="critical"');
+    const medIdx = html.indexOf('data-severity="medium"');
+    expect(critIdx).toBeGreaterThan(-1);
+    expect(medIdx).toBeGreaterThan(-1);
+    expect(critIdx).toBeLessThan(medIdx);
+  });
+
+  it("populates filter dropdown with unique vuln classes", () => {
+    const a = makeFinding({ vector: makeVector({ id: "a", vulnClass: "sqli" }) });
+    const b = makeFinding({ vector: makeVector({ id: "b", vulnClass: "xss", riskScore: 4 }) });
+    const html = renderHtml(
+      [
+        { finding: a, severity: scoreFinding(a) },
+        { finding: b, severity: scoreFinding(b) },
+      ],
+      [],
+      config,
+      now
+    );
+    expect(html).toContain('<option value="sqli">sqli</option>');
+    expect(html).toContain('<option value="xss">xss</option>');
+  });
+});
+
 describe("generateReport", () => {
   let tmp: string;
 
@@ -226,7 +322,7 @@ describe("generateReport", () => {
     await rm(tmp, { recursive: true, force: true });
   });
 
-  it("writes report.md and report.json into a timestamped subdir", async () => {
+  it("writes report.md, report.json, and report.html into a timestamped subdir", async () => {
     const config = makeConfig(tmp);
     const out = await generateReport([makeFinding()], config);
     expect(out.confirmedCount).toBe(1);
@@ -236,6 +332,9 @@ describe("generateReport", () => {
     expect(md).toContain("NICO-SQLI-001");
     const json = JSON.parse(await readFile(out.jsonPath, "utf-8"));
     expect(json.findings).toHaveLength(1);
+    const html = await readFile(out.htmlPath, "utf-8");
+    expect(html).toContain("<!DOCTYPE html>");
+    expect(html).toContain("NICO-SQLI-001");
   });
 
   it("filters non-confirmed verdicts out of findings array", async () => {

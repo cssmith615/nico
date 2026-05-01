@@ -7,6 +7,7 @@ import { confirmedOnly } from "../validation/index.js";
 import { scoreFinding } from "./severity.js";
 import { renderMarkdown, type ReportEntry } from "./markdown.js";
 import { buildReportJson } from "./json.js";
+import { renderHtml } from "./html.js";
 
 const SEVERITY_ORDER = { critical: 0, high: 1, medium: 2, low: 3 } as const;
 
@@ -14,6 +15,7 @@ export interface ReportOutput {
   reportDir: string;
   markdownPath: string;
   jsonPath: string;
+  htmlPath: string;
   confirmedCount: number;
   inconclusiveCount: number;
 }
@@ -63,17 +65,21 @@ export async function generateReport(
 
   const markdown = renderMarkdown(entries, inconclusive, config, now);
   const json = buildReportJson(entries, inconclusive, config, now);
+  const html = renderHtml(entries, inconclusive, config, now);
 
   const markdownPath = join(reportDir, "report.md");
   const jsonPath = join(reportDir, "report.json");
+  const htmlPath = join(reportDir, "report.html");
 
   await writeFile(markdownPath, markdown, "utf-8");
   await writeFile(jsonPath, JSON.stringify(json, null, 2), "utf-8");
+  await writeFile(htmlPath, html, "utf-8");
 
   return {
     reportDir,
     markdownPath,
     jsonPath,
+    htmlPath,
     confirmedCount: confirmed.length,
     inconclusiveCount: inconclusive.length,
   };

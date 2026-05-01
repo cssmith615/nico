@@ -8,9 +8,11 @@ Claude maps the attack surface, generates the exploits, and judges the results. 
 
 ## Status
 
-**Sprint 0.3 in progress** — GitHub Actions CI/CD integration: internal CI workflow + reusable Action so Nico can drop into any PR pipeline.
+**Sprint 0.4 in progress** — self-contained interactive HTML dashboard generated alongside `report.md` and `report.json`. Open directly from disk, filter by severity/class, search across findings.
 
-Previous: 0.2 — baseline response diffing, XSS/auth/SSRF/IDOR templates, OpenAPI/Swagger JSON ingestion.
+Previous:
+- 0.3 — GitHub Actions CI + reusable Action for PR pipelines
+- 0.2 — baseline response diffing, XSS/auth/SSRF/IDOR templates, OpenAPI/Swagger JSON ingestion
 
 ## Architecture
 
@@ -77,7 +79,10 @@ Reports land in `<output>/<ISO-timestamp>/`:
 
 - `report.md` — human-readable, severity-sorted, with PoC and evidence
 - `report.json` — structured findings (matches `Finding` zod schema)
+- `report.html` — self-contained interactive dashboard (filter by severity/class, search, expandable PoC)
 - `evidence/` — screenshots from confirmed exploits
+
+The HTML dashboard is fully self-contained — no external scripts or stylesheets, no network — open it directly from disk in any modern browser. The GitHub Action uploads the entire directory as the `nico-report` artifact.
 
 ## OWASP Juice Shop quickstart
 
@@ -109,7 +114,7 @@ Expected confirmed findings:
 | v0.1 | SQL injection |
 | v0.2 | XSS, auth bypass, SSRF, IDOR, OpenAPI ingestion |
 | v0.3 | GitHub Actions CI + reusable Action |
-| v0.4 | Report dashboard |
+| v0.4 | Self-contained HTML report dashboard |
 | v0.5 | CORS, business logic, correlation |
 
 ## GitHub Action

@@ -246,6 +246,7 @@ program
       console.log();
       console.log(chalk.bold("  Markdown:") + ` ${report.markdownPath}`);
       console.log(chalk.bold("  JSON:    ") + ` ${report.jsonPath}`);
+      console.log(chalk.bold("  HTML:    ") + ` ${report.htmlPath}`);
       console.log();
     } catch (err) {
       spinner6.fail("Report generation failed");

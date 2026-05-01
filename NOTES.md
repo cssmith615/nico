@@ -4,7 +4,7 @@ Multi-agent handoff doc. Cold-start agents read this first.
 
 ## Status
 
-**Sprint 0.3 in progress.** Internal CI + reusable GitHub Action drafted, awaiting first push to validate.
+**Sprint 0.4 in progress.** Self-contained interactive HTML dashboard added to the reporter — `report.html` written alongside `report.md` and `report.json`. Filter by severity / vuln class, free-text search, expandable PoC blocks, severity-bucketed summary cards.
 
 ### Recent ship history
 
@@ -13,19 +13,22 @@ Multi-agent handoff doc. Cold-start agents read this first.
 - **0.2b — Auth/SSRF/IDOR templates.** Per-class prompt templates added to `prompts/`.
 - **0.2c — OpenAPI ingestion.** CLI accepts `--openapi <spec>` as an alternative to `--source`. Orchestrator parses real request body params instead of synthesizing a generic body vector.
 - **0.2 cleanup (Codex).** ESLint config added, vitest/vite bumped past advisories, `pnpm audit --audit-level moderate` clean.
+- **0.3 — GitHub Actions CI + reusable Action.** Internal CI green on Node 20 + 22 (vitest 4 dropped Node 18 support). `.github/workflows/ci.yml` runs lint → typecheck → test → build → audit. `action.yml` composite Action: scan + sticky PR comment + artifact upload + severity gate. Example consumer workflow at `examples/workflows/nico-scan.yml`. **First-PR validation of the Action itself still open** before tagging.
 
-### 0.3 deliverables
+### 0.4 still open
 
-- `.github/workflows/ci.yml` — push + PR triggers, Node 18/20 matrix, runs lint → typecheck → test → build → audit.
-- `action.yml` (composite) — drop-in GitHub Action: scan + sticky PR comment + artifact upload + severity gate.
-- `examples/workflows/nico-scan.yml` — copy-paste consumer workflow.
-- README updated with Action inputs/secrets/permissions docs.
+- First green CI run with the new HTML output (verifying via push).
+- Visual polish pass once a real Juice Shop scan generates an HTML report — the only thing tested today is structure, not aesthetics.
 
-### 0.3 still open
+### Parked for paid-tier discussion
 
-- First green CI run on master (need a push to verify).
-- Tag `v0.3` (or `v0.1` for the action ref) once internal CI is green and the Action is exercised end-to-end against a real PR.
-- Optional follow-ups deferred: Docker image to ghcr.io for the Action, `start-target-cmd` input, npm publish.
+- **B — Hosted dashboard service.** Multi-run history, persistent storage, auth, organization-level findings index. The natural commercial surface beyond v0.4's static HTML. Revisit after v1.0 lands.
+
+### Pre-tag checklist for v0.3
+
+- [x] Internal CI green on master.
+- [ ] Reusable Action exercised on a real PR (sticky comment + severity gate).
+- [ ] Tag `v0.3` (and update README example to use that tag instead of `@v0.1`).
 
 ## Architecture decisions on file
 
