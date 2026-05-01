@@ -4,7 +4,7 @@ Multi-agent handoff doc. Cold-start agents read this first.
 
 ## Status
 
-**Sprint 0.5a in progress.** CORS misconfiguration detection is being added after 0.4 shipped. Core CORS enum/template/severity/comparator/OpenAPI-vector/heuristic/test work is complete in the current Codex handoff.
+**Sprint 0.5a shipped on master.** CORS misconfiguration detection is in place. Current Codex branch `codex/verify-action-dashboard-polish` is validating the reusable Action on a real draft PR and polishing the static HTML dashboard from a live Juice Shop scan.
 
 ### Recent ship history
 
@@ -16,12 +16,14 @@ Multi-agent handoff doc. Cold-start agents read this first.
 - **0.3 — GitHub Actions CI + reusable Action.** Internal CI green on Node 20 + 22 (vitest 4 dropped Node 18 support). `.github/workflows/ci.yml` runs lint → typecheck → test → build → audit. `action.yml` composite Action: scan + sticky PR comment + artifact upload + severity gate. Example consumer workflow at `examples/workflows/nico-scan.yml`. **First-PR validation of the Action itself still open** before tagging.
 - **0.4 — Static HTML dashboard.** Self-contained interactive `report.html` written alongside `report.md` and `report.json`. Filter by severity / vuln class, free-text search, expandable PoC blocks, severity-bucketed summary cards. CI green on Node 20 + 22.
 - **0.5a — CORS detection.** Adds `cors` vuln class, prompt template, OpenAPI synthetic `Origin` header vectors, source analyzer prompt support, CORS comparator signal, heuristics, severity scoring, and tests.
+- **Action smoke PR (Codex).** Draft PR branch `codex/verify-action-dashboard-polish` adds `.github/workflows/nico-action-smoke.yml`, which starts OWASP Juice Shop, runs `cssmith615/nico@master`, posts the sticky PR comment, uploads the report artifact, and sets `fail-on-severity: critical` so the severity gate is exercised against a real confirmed finding. The expected first run may fail at the gate if Juice Shop still produces the critical auth finding.
+- **Dashboard polish (Codex).** Live scan artifact at `reports/visual-check/2026-05-01T19-10-16-528Z/` confirmed 3 findings (1 critical auth, 2 high SQLi) and 3 inconclusive generation failures. `src/reporter/html.ts` now uses a lighter, more legible dashboard palette, responsive summary cards, better wrapping for long routes/error text, and a wider reasoning column for inconclusive records.
 
 ### 0.5 still open
 
 - Business logic detection.
 - Multi-vector correlation / chained findings.
-- Real PR validation of the reusable Action with Juice Shop, ideally also producing an HTML artifact for visual review.
+- Watch the Action smoke PR and confirm sticky PR comment + artifact upload + expected severity-gate behavior.
 
 ### Parked for paid-tier discussion
 
@@ -30,7 +32,7 @@ Multi-agent handoff doc. Cold-start agents read this first.
 ### Pre-tag checklist for v0.3
 
 - [x] Internal CI green on master.
-- [ ] Reusable Action exercised on a real PR (sticky comment + severity gate).
+- [ ] Reusable Action exercised on a real PR (sticky comment + severity gate). Draft smoke PR branch: `codex/verify-action-dashboard-polish`.
 - [ ] Tag `v0.3` (and update README example to use that tag instead of `@v0.1`).
 
 ## Architecture decisions on file

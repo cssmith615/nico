@@ -1,0 +1,63 @@
+name: Nico Action Smoke
+
+on:
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  juice-shop:
+    name: Juice Shop scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'codex/verify-action')
+
+    steps:
+      - name: Checkout Nico repo
+        uses: actions/checkout@v4
+
+      - name: Check Anthropic secret
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::ANTHROPIC_API_KEY is required to run the Nico Action smoke test."
+            exit 1
+          fi
+
+      - name: Checkout Juice Shop source
+        run: git clone --depth 1 https://github.com/juice-shop/juice-shop.git juice-shop-src
+
+      - name: Start Juice Shop
+        run: |
+          docker run -d --name nico-juice-shop -p 3000:3000 bkimminich/juice-shop
+          for i in {1..90}; do
+            if curl -fsS http://localhost:3000 >/dev/null; then
+              echo "Juice Shop is ready."
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs nico-juice-shop
+          echo "::error::Juice Shop did not become ready."
+          exit 1
+
+      - name: Run Nico reusable Action
+        uses: cssmith615/nico@master
+        with:
+          target-url: http://localhost:3000
+          source-path: ./juice-shop-src
+          scope: sqli,auth
+          output-dir: ./nico-action-report
+          fail-on-severity: critical
+          comment-pr: true
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Stop Juice Shop
+        if: always()
+        run: docker rm -f nico-juice-shop || true
