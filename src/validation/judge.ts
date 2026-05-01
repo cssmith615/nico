@@ -32,13 +32,24 @@ Evidence:
 - Screenshot captured: ${result.evidence.screenshotPath ? "yes" : "no"}
 - Retry count: ${result.retryCount}
 
+Baseline comparison (benign request vs exploit request):
+${result.evidence.diff
+  ? `- Diff summary: ${result.evidence.diff.diffSummary}
+- Status changed: ${result.evidence.diff.statusChanged}
+- Response length delta: ${result.evidence.diff.lengthDelta > 0 ? "+" : ""}${result.evidence.diff.lengthDelta} chars
+- New SQL error signals: ${result.evidence.diff.newSqlSignals.length > 0 ? result.evidence.diff.newSqlSignals.join(", ") : "none"}
+- Response time delta: +${result.evidence.diff.responseTimeDeltaMs}ms
+- JSON object count delta: ${result.evidence.diff.jsonLengthDelta > 0 ? "+" : ""}${result.evidence.diff.jsonLengthDelta}
+- Diff confirmed: ${result.evidence.diff.confirmedByDiff}`
+  : "- No baseline available"}
+
 The sandbox marked this as CONFIRMED. Is this a genuine vulnerability, a false positive, or inconclusive?
 
 Common false positive patterns:
 - Server always returns 500 (broken app, not injection)
 - Response body is a generic error page unrelated to the payload
 - Payload appears in response but is HTML-escaped (not a real XSS)
-- Status 200 but response is empty or identical to a non-injected baseline
+- Response is identical to baseline (no diff = no exploitation)
 
 Respond with ONLY valid JSON — no explanation, no markdown:
 {"verdict":"confirmed"|"false_positive"|"inconclusive","reasoning":"one concise sentence"}`;

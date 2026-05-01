@@ -1,4 +1,4 @@
-import type { ExploitScript, ExploitResult } from "../types/index.js";
+import type { ExploitScript, ExploitResult, AttackVector } from "../types/index.js";
 import { runExploit } from "./runner.js";
 import { imageExists, buildImage } from "./docker.js";
 import { join, dirname } from "path";
@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 
 const DOCKERFILE = join(dirname(fileURLToPath(import.meta.url)), "../../docker/Dockerfile.sandbox");
 
-const CONCURRENCY = 2; // limit concurrent containers
+const CONCURRENCY = 2;
 
 export async function ensureSandbox(): Promise<void> {
   if (!(await imageExists())) {
@@ -16,6 +16,8 @@ export async function ensureSandbox(): Promise<void> {
 
 export async function runExploits(
   scripts: ExploitScript[],
+  vectors: AttackVector[],
+  targetUrl: string,
   timeoutMs: number,
   maxRetries: number
 ): Promise<ExploitResult[]> {
@@ -24,7 +26,11 @@ export async function runExploits(
   for (let i = 0; i < scripts.length; i += CONCURRENCY) {
     const batch = scripts.slice(i, i + CONCURRENCY);
     const settled = await Promise.allSettled(
-      batch.map((s) => runExploit(s, timeoutMs, maxRetries))
+      batch.map((s) => {
+        const vector = vectors.find((v) => v.id === s.vectorId);
+        if (!vector) return Promise.reject(new Error(`No vector found for script ${s.vectorId}`));
+        return runExploit(s, vector, targetUrl, timeoutMs, maxRetries);
+      })
     );
     for (const outcome of settled) {
       if (outcome.status === "fulfilled") {

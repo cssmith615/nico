@@ -25,14 +25,35 @@ export const ExploitScript = z.object({
 });
 export type ExploitScript = z.infer<typeof ExploitScript>;
 
+export const BaselineEvidence = z.object({
+  statusCode: z.number().optional(),
+  responseBody: z.string().optional(),
+  responseTimeMs: z.number().optional(),
+});
+export type BaselineEvidence = z.infer<typeof BaselineEvidence>;
+
+export const DiffResult = z.object({
+  statusChanged: z.boolean(),
+  lengthDelta: z.number(),
+  newSqlSignals: z.array(z.string()),
+  responseTimeDeltaMs: z.number(),
+  jsonLengthDelta: z.number(),
+  confirmedByDiff: z.boolean(),
+  diffSummary: z.string(),
+});
+export type DiffResult = z.infer<typeof DiffResult>;
+
 export const ExploitResult = z.object({
   vectorId: z.string(),
   confirmed: z.boolean(),
+  scriptConfirmed: z.boolean().optional(),
   evidence: z.object({
     screenshotPath: z.string().optional(),
     responseBody: z.string().optional(),
     statusCode: z.number().optional(),
     errorMessage: z.string().optional(),
+    baseline: BaselineEvidence.optional(),
+    diff: DiffResult.optional(),
   }),
   retryCount: z.number().default(0),
 });

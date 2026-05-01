@@ -159,7 +159,7 @@ program
     const spinner4 = ora(`Running ${scripts.length} exploit${scripts.length !== 1 ? "s" : ""} in sandbox...`).start();
     let results;
     try {
-      results = await runExploits(scripts, config.timeoutMs, config.maxRetries);
+      results = await runExploits(scripts, vectors, config.targetUrl, config.timeoutMs, config.maxRetries);
       const confirmed = results.filter((r) => r.confirmed).length;
       spinner4.succeed(`Sandbox complete — ${confirmed} confirmed, ${results.length - confirmed} unconfirmed`);
     } catch (err) {
@@ -173,11 +173,14 @@ program
       const vector = vectors.find((v) => v.id === r.vectorId);
       if (r.confirmed) {
         console.log(chalk.red.bold(`  ✗ CONFIRMED`) + chalk.dim(` ${vector?.route ?? r.vectorId}`));
-        if (r.evidence.responseBody) {
-          console.log(chalk.dim(`    ${r.evidence.responseBody.slice(0, 120)}`));
+        if (r.evidence.diff?.diffSummary) {
+          console.log(chalk.dim(`    diff: ${r.evidence.diff.diffSummary}`));
         }
       } else {
-        console.log(chalk.green(`  ✓ not exploitable`) + chalk.dim(` ${vector?.route ?? r.vectorId}`));
+        const note = r.evidence.diff && !r.evidence.diff.confirmedByDiff
+          ? " (script claimed confirmed — baseline diff disagreed)"
+          : "";
+        console.log(chalk.green(`  ✓ not exploitable`) + chalk.dim(` ${vector?.route ?? r.vectorId}${note}`));
       }
     }
 

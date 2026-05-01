@@ -39,6 +39,7 @@ function adaptForDocker(script: string): string {
 
 export interface ContainerResult {
   evidenceJson: string;
+  baselineJson?: string;
   screenshotPath?: string;
   timedOut: boolean;
 }
@@ -46,7 +47,8 @@ export interface ContainerResult {
 export async function runInContainer(
   script: string,
   scriptType: "curl" | "playwright",
-  timeoutMs: number
+  timeoutMs: number,
+  baselineScript?: string
 ): Promise<ContainerResult> {
   const id = crypto.randomUUID();
   const containerName = `nico-${id}`;
@@ -56,11 +58,22 @@ export async function runInContainer(
   const ext = scriptType === "playwright" ? "js" : "sh";
   await writeFile(join(workdir, `exploit.${ext}`), adaptForDocker(script), "utf-8");
 
-  const dockerWorkdir = toDockerVolumePath(workdir);
-  const cmd = scriptType === "playwright"
-    ? ["node", "/workspace/exploit.js"]
-    : ["bash", "/workspace/exploit.sh"];
+  // Write baseline script if provided; run it first in the same container
+  let cmd: string[];
+  if (baselineScript) {
+    await writeFile(join(workdir, "baseline.sh"), adaptForDocker(baselineScript), "utf-8");
+    if (scriptType === "playwright") {
+      cmd = ["bash", "-c", "bash /workspace/baseline.sh && node /workspace/exploit.js"];
+    } else {
+      cmd = ["bash", "-c", "bash /workspace/baseline.sh && bash /workspace/exploit.sh"];
+    }
+  } else {
+    cmd = scriptType === "playwright"
+      ? ["node", "/workspace/exploit.js"]
+      : ["bash", "/workspace/exploit.sh"];
+  }
 
+  const dockerWorkdir = toDockerVolumePath(workdir);
   const timedOut = await runDockerContainer(containerName, dockerWorkdir, cmd, timeoutMs);
 
   const evidencePath = join(workdir, "evidence.json");
@@ -69,6 +82,16 @@ export async function runInContainer(
     evidenceJson = await readFile(evidencePath, "utf-8");
   } catch {
     // Script crashed before writing evidence
+  }
+
+  // Read baseline evidence if it was requested
+  let baselineJson: string | undefined;
+  if (baselineScript) {
+    try {
+      baselineJson = await readFile(join(workdir, "baseline.json"), "utf-8");
+    } catch {
+      // Baseline script crashed — non-fatal, comparator handles missing baseline
+    }
   }
 
   let screenshotPath: string | undefined;
@@ -87,7 +110,7 @@ export async function runInContainer(
     // Non-fatal
   }
 
-  return { evidenceJson, screenshotPath, timedOut };
+  return { evidenceJson, baselineJson, screenshotPath, timedOut };
 }
 
 async function runDockerContainer(

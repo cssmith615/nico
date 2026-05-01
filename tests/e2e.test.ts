@@ -122,7 +122,7 @@ describe("E2E pipeline (mocked APIs)", () => {
 
     // 3. Sandbox (mocked)
     await ensureSandbox();
-    const results = await runExploits(scripts, config.timeoutMs, config.maxRetries);
+    const results = await runExploits(scripts, vectors, config.targetUrl, config.timeoutMs, config.maxRetries);
     expect(results).toHaveLength(1);
     expect(results[0].confirmed).toBe(true);
 
