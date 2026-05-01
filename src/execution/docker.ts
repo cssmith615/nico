@@ -29,12 +29,23 @@ function toDockerVolumePath(hostPath: string): string {
   return hostPath.replace(/\\/g, "/").replace(/^([A-Za-z]):/, (_, d) => `//${d.toLowerCase()}`);
 }
 
-function adaptForDocker(script: string): string {
-  // On non-Linux, localhost inside Docker doesn't reach the host
-  if (process.platform === "linux") return script;
+function sandboxNetwork(): string {
+  return process.env.NICO_DOCKER_NETWORK?.trim() || "bridge";
+}
+
+function dockerHostAlias(): string {
+  return process.env.NICO_DOCKER_HOST_ALIAS?.trim() || "host.docker.internal";
+}
+
+export function adaptForDocker(script: string): string {
+  if (sandboxNetwork() === "host") return script;
+  // localhost inside the sandbox container points at the sandbox itself, not the target app.
+  // By default runDockerContainer maps host.docker.internal to the Docker host. CI can
+  // override NICO_DOCKER_HOST_ALIAS to point at a sibling container on a user network.
+  const alias = dockerHostAlias();
   return script
-    .replace(/\blocalhost\b/g, "host.docker.internal")
-    .replace(/127\.0\.0\.1/g, "host.docker.internal");
+    .replace(/\blocalhost\b/g, alias)
+    .replace(/127\.0\.0\.1/g, alias);
 }
 
 export interface ContainerResult {
@@ -119,11 +130,11 @@ async function runDockerContainer(
   cmd: string[],
   timeoutMs: number
 ): Promise<boolean> {
+  const network = sandboxNetwork();
   const args = [
     "run",
     "--rm",
     "--name", containerName,
-    "--add-host=host.docker.internal:host-gateway",
     "--cap-drop=ALL",
     "--security-opt=no-new-privileges",
     "--read-only",
@@ -132,18 +143,22 @@ async function runDockerContainer(
     "--memory=512m",
     "--cpus=1",
     "--pids-limit=128",
-    "--network=bridge",
+    `--network=${network}`,
     "--shm-size=256m",
     "-e", "HOME=/tmp",
     "-v", `${dockerWorkdir}:/workspace:rw`,
     SANDBOX_IMAGE,
     ...cmd,
   ];
+  if (network === "bridge") {
+    args.splice(4, 0, "--add-host=host.docker.internal:host-gateway");
+  }
 
   return new Promise((resolve) => {
     let settled = false;
     let timedOut = false;
-    const child = spawn("docker", args, { stdio: "ignore" });
+    const stdio = process.env.NICO_DEBUG_SANDBOX === "1" ? "inherit" : "ignore";
+    const child = spawn("docker", args, { stdio });
 
     const timer = setTimeout(() => {
       timedOut = true;

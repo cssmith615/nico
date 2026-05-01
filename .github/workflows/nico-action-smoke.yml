@@ -1,0 +1,103 @@
+name: Nico Action Smoke
+
+on:
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  juice-shop:
+    name: Juice Shop scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'codex/verify-action')
+
+    steps:
+      - name: Checkout Nico repo
+        uses: actions/checkout@v4
+
+      - name: Check Anthropic secret
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::ANTHROPIC_API_KEY is required to run the Nico Action smoke test."
+            exit 1
+          fi
+
+      - name: Write Juice Shop smoke OpenAPI spec
+        run: |
+          cat > juice-shop-openapi.json <<'JSON'
+          {
+            "openapi": "3.0.0",
+            "info": {
+              "title": "Juice Shop Nico smoke target",
+              "version": "1.0.0"
+            },
+            "paths": {
+              "/rest/user/login": {
+                "post": {
+                  "requestBody": {
+                    "required": true,
+                    "content": {
+                      "application/json": {
+                        "schema": {
+                          "type": "object",
+                          "properties": {
+                            "email": { "type": "string" },
+                            "password": { "type": "string" }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "responses": {
+                    "200": { "description": "Login response" }
+                  }
+                }
+              }
+            }
+          }
+          JSON
+
+      - name: Start Juice Shop
+        run: |
+          docker network create nico-smoke
+          docker run -d --name nico-juice-shop --network nico-smoke -p 3000:3000 bkimminich/juice-shop@sha256:a8139c141311c7f31fcf2e611125246928f703ee42827de33983fd9425d1b2f6
+          for i in {1..90}; do
+            if curl -fsS http://localhost:3000 >/dev/null; then
+              echo "Juice Shop is ready."
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs nico-juice-shop
+          echo "::error::Juice Shop did not become ready."
+          exit 1
+
+      - name: Run Nico reusable Action
+        uses: ./
+        env:
+          NICO_DETERMINISTIC_SQLI: "1"
+          NICO_DEBUG_SANDBOX: "1"
+          NICO_DOCKER_NETWORK: nico-smoke
+          NICO_DOCKER_HOST_ALIAS: nico-juice-shop
+        with:
+          target-url: http://localhost:3000
+          openapi-path: ./juice-shop-openapi.json
+          scope: sqli
+          output-dir: ./nico-action-report
+          fail-on-severity: high
+          comment-pr: true
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Stop Juice Shop
+        if: always()
+        run: |
+          docker rm -f nico-juice-shop || true
+          docker network rm nico-smoke || true

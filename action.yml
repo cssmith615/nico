@@ -35,7 +35,7 @@ inputs:
     required: false
     default: 'true'
   anthropic-api-key:
-    description: Anthropic API key. Pass as `${{ secrets.ANTHROPIC_API_KEY }}`.
+    description: Anthropic API key. Pass your repository secret from the caller workflow.
     required: true
 
 outputs:
@@ -64,8 +64,6 @@ runs:
       uses: actions/setup-node@v4
       with:
         node-version: 20
-        cache: pnpm
-        cache-dependency-path: ${{ github.action_path }}/pnpm-lock.yaml
 
     - name: Install Nico
       shell: bash
