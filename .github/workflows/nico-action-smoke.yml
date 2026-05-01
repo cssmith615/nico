@@ -84,6 +84,7 @@ jobs:
         uses: ./
         env:
           NICO_DETERMINISTIC_SQLI: "1"
+          NICO_DEBUG_SANDBOX: "1"
           NICO_DOCKER_NETWORK: nico-smoke
           NICO_DOCKER_HOST_ALIAS: nico-juice-shop
         with:

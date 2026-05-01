@@ -157,7 +157,8 @@ async function runDockerContainer(
   return new Promise((resolve) => {
     let settled = false;
     let timedOut = false;
-    const child = spawn("docker", args, { stdio: "ignore" });
+    const stdio = process.env.NICO_DEBUG_SANDBOX === "1" ? "inherit" : "ignore";
+    const child = spawn("docker", args, { stdio });
 
     const timer = setTimeout(() => {
       timedOut = true;
