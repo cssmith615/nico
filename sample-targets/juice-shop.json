@@ -1,0 +1,29 @@
+{
+  "name": "OWASP Juice Shop",
+  "description": "Reference vulnerable web app — used to validate Nico against known SQLi and auth bypass findings.",
+  "target": "http://localhost:3000",
+  "sourceClonePath": "./juice-shop-src",
+  "sourceRepo": "https://github.com/juice-shop/juice-shop.git",
+  "scope": ["sqli", "auth"],
+  "expectedFindings": [
+    {
+      "vulnClass": "sqli",
+      "route": "/rest/user/login",
+      "method": "POST",
+      "input": "email",
+      "notes": "Login bypass via SQL injection — payload: ' OR 1=1--"
+    },
+    {
+      "vulnClass": "auth",
+      "route": "/rest/user/login",
+      "method": "POST",
+      "input": "email",
+      "notes": "Authentication bypass enabled by SQLi — admin login without credentials"
+    }
+  ],
+  "setup": [
+    "docker run --rm -p 3000:3000 bkimminich/juice-shop",
+    "git clone https://github.com/juice-shop/juice-shop.git ./juice-shop-src"
+  ],
+  "command": "pnpm dev scan --target http://localhost:3000 --source ./juice-shop-src --scope sqli,auth"
+}

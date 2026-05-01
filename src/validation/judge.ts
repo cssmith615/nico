@@ -49,7 +49,7 @@ export async function judgeResult(
   vector: AttackVector,
   script: ExploitScript
 ): Promise<JudgeVerdict> {
-  const client = new Anthropic();
+  const client = new Anthropic({ maxRetries: 5 });
 
   const response = await client.messages.create({
     model: "claude-sonnet-4-6",

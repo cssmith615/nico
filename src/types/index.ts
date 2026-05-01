@@ -11,7 +11,7 @@ export const AttackVector = z.object({
   inputName: z.string(),
   inputType: z.enum(["query", "body", "header", "cookie"]),
   sourceFile: z.string().optional(),
-  sourceLine: z.number().optional(),
+  sourceLine: z.number().nullable().optional(),
   riskScore: z.number().min(0).max(10),
   notes: z.string().optional(),
 });
@@ -49,7 +49,7 @@ export const Finding = z.object({
   poc: z.string(),
   evidence: ExploitResult.shape.evidence,
   sourceFile: z.string().optional(),
-  sourceLine: z.number().optional(),
+  sourceLine: z.number().nullable().optional(),
 });
 export type Finding = z.infer<typeof Finding>;
 

@@ -40,6 +40,7 @@ export async function analyzeAttackSurface(
 ): Promise<AttackVector[]> {
   const client = new Anthropic({
     defaultHeaders: { "anthropic-beta": "prompt-caching-2024-07-31" },
+    maxRetries: 5,
   });
 
   const sourceContext = files
@@ -53,7 +54,6 @@ export async function analyzeAttackSurface(
       {
         type: "text",
         text: SYSTEM_PROMPT,
-        // @ts-expect-error cache_control not yet in SDK types for system blocks
         cache_control: { type: "ephemeral" },
       },
     ],
@@ -64,7 +64,6 @@ export async function analyzeAttackSurface(
           {
             type: "text",
             text: sourceContext,
-            // @ts-expect-error cache_control not yet in SDK types for content blocks
             cache_control: { type: "ephemeral" },
           },
           {

@@ -1,6 +1,6 @@
-import { exec } from "child_process";
+import { exec, spawn } from "child_process";
 import { promisify } from "util";
-import { writeFile, readFile, mkdir, rm } from "fs/promises";
+import { writeFile, readFile, mkdir, rm, copyFile } from "fs/promises";
 import { join } from "path";
 import os from "os";
 import crypto from "crypto";
@@ -49,6 +49,7 @@ export async function runInContainer(
   timeoutMs: number
 ): Promise<ContainerResult> {
   const id = crypto.randomUUID();
+  const containerName = `nico-${id}`;
   const workdir = join(os.tmpdir(), `nico-${id}`);
   await mkdir(workdir, { recursive: true });
 
@@ -57,27 +58,10 @@ export async function runInContainer(
 
   const dockerWorkdir = toDockerVolumePath(workdir);
   const cmd = scriptType === "playwright"
-    ? "node /workspace/exploit.js"
-    : "bash /workspace/exploit.sh";
+    ? ["node", "/workspace/exploit.js"]
+    : ["bash", "/workspace/exploit.sh"];
 
-  // --add-host ensures host.docker.internal resolves on Linux too
-  const dockerRun = `docker run --rm --add-host=host.docker.internal:host-gateway -v "${dockerWorkdir}:/workspace" ${SANDBOX_IMAGE} ${cmd}`;
-
-  let timedOut = false;
-  const timeout = new Promise<never>((_, reject) =>
-    setTimeout(() => {
-      timedOut = true;
-      reject(new Error("sandbox timeout"));
-    }, timeoutMs)
-  );
-
-  try {
-    await Promise.race([execAsync(dockerRun), timeout]);
-  } catch (err) {
-    if (!timedOut) {
-      // Non-zero exit is expected when exploits fail — evidence file may still be written
-    }
-  }
+  const timedOut = await runDockerContainer(containerName, dockerWorkdir, cmd, timeoutMs);
 
   const evidencePath = join(workdir, "evidence.json");
   let evidenceJson = '{"confirmed":false,"payload":"","response":"script did not produce evidence","statusCode":0}';
@@ -88,9 +72,11 @@ export async function runInContainer(
   }
 
   let screenshotPath: string | undefined;
+  const containerScreenshotPath = join(workdir, "evidence.png");
   try {
-    await readFile(join(workdir, "evidence.png"));
-    screenshotPath = join(workdir, "evidence.png");
+    await readFile(containerScreenshotPath);
+    screenshotPath = join(os.tmpdir(), `nico-evidence-${id}.png`);
+    await copyFile(containerScreenshotPath, screenshotPath);
   } catch {
     // No screenshot (curl exploits, or playwright didn't confirm)
   }
@@ -102,4 +88,58 @@ export async function runInContainer(
   }
 
   return { evidenceJson, screenshotPath, timedOut };
+}
+
+async function runDockerContainer(
+  containerName: string,
+  dockerWorkdir: string,
+  cmd: string[],
+  timeoutMs: number
+): Promise<boolean> {
+  const args = [
+    "run",
+    "--rm",
+    "--name", containerName,
+    "--add-host=host.docker.internal:host-gateway",
+    "--cap-drop=ALL",
+    "--security-opt=no-new-privileges",
+    "--read-only",
+    "--tmpfs", "/tmp:rw,nosuid,nodev,size=256m",
+    "--tmpfs", "/home/pwuser:rw,nosuid,nodev,size=128m",
+    "--memory=512m",
+    "--cpus=1",
+    "--pids-limit=128",
+    "--network=bridge",
+    "--shm-size=256m",
+    "-e", "HOME=/tmp",
+    "-v", `${dockerWorkdir}:/workspace:rw`,
+    SANDBOX_IMAGE,
+    ...cmd,
+  ];
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let timedOut = false;
+    const child = spawn("docker", args, { stdio: "ignore" });
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      exec(`docker rm -f ${containerName}`, () => undefined);
+      child.kill("SIGKILL");
+    }, timeoutMs);
+
+    child.on("error", () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(false);
+    });
+
+    child.on("close", () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(timedOut);
+    });
+  });
 }

@@ -1,12 +1,14 @@
 import type { ExploitScript, ExploitResult } from "../types/index.js";
 import { runInContainer } from "./docker.js";
+import { z } from "zod";
 
-interface EvidenceFile {
-  confirmed: boolean;
-  payload: string;
-  response: string;
-  statusCode: number;
-}
+const EvidenceFile = z.object({
+  confirmed: z.boolean(),
+  payload: z.string().optional(),
+  response: z.unknown().optional(),
+  statusCode: z.number().optional(),
+});
+type EvidenceFile = z.infer<typeof EvidenceFile>;
 
 function parseEvidence(
   json: string,
@@ -16,22 +18,22 @@ function parseEvidence(
 ): ExploitResult {
   let ev: EvidenceFile;
   try {
-    ev = JSON.parse(json) as EvidenceFile;
+    ev = EvidenceFile.parse(JSON.parse(json));
   } catch {
     return {
       vectorId,
       confirmed: false,
-      evidence: { errorMessage: "Evidence file was not valid JSON" },
+      evidence: { errorMessage: "Evidence file was not valid JSON or did not match expected schema" },
       retryCount,
     };
   }
 
   return {
     vectorId,
-    confirmed: Boolean(ev.confirmed),
+    confirmed: ev.confirmed === true,
     evidence: {
       responseBody: ev.response ? String(ev.response).slice(0, 1000) : undefined,
-      statusCode: typeof ev.statusCode === "number" ? ev.statusCode : undefined,
+      statusCode: ev.statusCode,
       screenshotPath,
     },
     retryCount,

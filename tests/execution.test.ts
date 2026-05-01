@@ -57,10 +57,10 @@ describe("parseEvidence", () => {
     expect(result.evidence.screenshotPath).toBe("/tmp/nico-abc/evidence.png");
   });
 
-  it("coerces truthy non-boolean confirmed values", () => {
-    // Some models return 1 instead of true
+  it("rejects non-boolean confirmed values", () => {
     const json = JSON.stringify({ confirmed: 1, payload: "x", response: "ok", statusCode: 200 });
     const result = parseEvidence(json, "sqli-005", 0);
-    expect(result.confirmed).toBe(true);
+    expect(result.confirmed).toBe(false);
+    expect(result.evidence.errorMessage).toContain("expected schema");
   });
 });

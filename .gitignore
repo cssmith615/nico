@@ -2,6 +2,7 @@ node_modules/
 dist/
 .env
 reports/
+juice-shop-src/
 *.log
 .DS_Store
 Thumbs.db

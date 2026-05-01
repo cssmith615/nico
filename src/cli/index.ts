@@ -1,15 +1,43 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
 import { VulnClass } from "../types/index.js";
+
+function loadDotenv(path: string): void {
+  let raw: string;
+  try {
+    raw = readFileSync(path, "utf-8");
+  } catch {
+    return;
+  }
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq < 1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (process.env[key] === undefined) process.env[key] = value;
+  }
+}
+
+loadDotenv(resolve(process.cwd(), ".env"));
 import type { ScanConfig } from "../types/index.js";
 import { runOrchestrator } from "../orchestrator/index.js";
-import { generateExploits } from "../exploit/index.js";
+import { generateExploitsWithFailures } from "../exploit/index.js";
 import { ensureSandbox, runExploits } from "../execution/index.js";
-import { validateResults, confirmedOnly } from "../validation/index.js";
+import { validateResults, confirmedOnly, type ValidatedFinding } from "../validation/index.js";
+import { generateReport } from "../reporter/index.js";
+import { preflight } from "./preflight.js";
 
 const program = new Command();
+type ParsedVulnClass = typeof VulnClass._type;
 
 program
   .name("nico")
@@ -31,14 +59,21 @@ program
   .option("--retries <n>", "Max retries on ambiguous results", "2")
   .action(async (opts) => {
     const rawScope = opts.scope.split(",").map((s: string) => s.trim());
-    const scopeResults = rawScope.map((s: string) => VulnClass.safeParse(s));
-    const invalid = rawScope.filter((_: string, i: number) => !scopeResults[i].success);
+    const scope: ParsedVulnClass[] = [];
+    const invalid: string[] = [];
+    for (const entry of rawScope) {
+      const result = VulnClass.safeParse(entry);
+      if (result.success) {
+        scope.push(result.data);
+      } else {
+        invalid.push(entry);
+      }
+    }
     if (invalid.length > 0) {
       console.error(chalk.red(`Invalid vuln class(es): ${invalid.join(", ")}`));
       console.error(`Valid: ${VulnClass.options.join(", ")}`);
       process.exit(1);
     }
-    const scope = scopeResults.map((r) => (r as { success: true; data: typeof VulnClass._type }).data);
 
     const config: ScanConfig = {
       targetUrl: opts.target,
@@ -53,6 +88,16 @@ program
     console.log(`  Target : ${config.targetUrl}`);
     console.log(`  Source : ${config.sourcePath}`);
     console.log(`  Scope  : ${config.scope.join(", ")}\n`);
+
+    const preflightSpinner = ora("Running pre-flight checks...").start();
+    const pre = await preflight(config);
+    if (!pre.ok) {
+      preflightSpinner.fail("Pre-flight failed");
+      for (const err of pre.errors) console.error(chalk.red(`  • ${err}`));
+      process.exit(1);
+    }
+    preflightSpinner.succeed("Pre-flight checks passed");
+    for (const warn of pre.warnings) console.log(chalk.yellow(`  ! ${warn}`));
 
     const spinner = ora("Analyzing attack surface...").start();
     let vectors;
@@ -77,9 +122,15 @@ program
 
     const spinner2 = ora(`Generating exploits for ${vectors.length} vector${vectors.length !== 1 ? "s" : ""}...`).start();
     let scripts;
+    let generationFailures;
     try {
-      scripts = await generateExploits(vectors, config.targetUrl);
-      spinner2.succeed(`Generated ${scripts.length} exploit script${scripts.length !== 1 ? "s" : ""}`);
+      const generated = await generateExploitsWithFailures(vectors, config.targetUrl);
+      scripts = generated.scripts;
+      generationFailures = generated.failures;
+      spinner2.succeed(
+        `Generated ${scripts.length} exploit script${scripts.length !== 1 ? "s" : ""}` +
+        (generationFailures.length > 0 ? `, ${generationFailures.length} failed` : "")
+      );
     } catch (err) {
       spinner2.fail("Exploit generation failed");
       console.error(chalk.red(err instanceof Error ? err.message : String(err)));
@@ -134,6 +185,24 @@ program
     let findings;
     try {
       findings = await validateResults(results, vectors, scripts);
+      const generationFindings: ValidatedFinding[] = generationFailures.map((failure) => ({
+        verdict: "inconclusive",
+        reasoning: `Exploit generation failed: ${failure.error}`,
+        vector: failure.vector,
+        script: {
+          vectorId: failure.vector.id,
+          type: failure.vector.vulnClass === "xss" || failure.vector.vulnClass === "auth" ? "playwright" : "curl",
+          script: "",
+          payload: "",
+        },
+        result: {
+          vectorId: failure.vector.id,
+          confirmed: false,
+          evidence: { errorMessage: failure.error },
+          retryCount: 0,
+        },
+      }));
+      findings.push(...generationFindings);
       const confirmed = confirmedOnly(findings);
       spinner5.succeed(
         `Validation complete — ${confirmed.length} confirmed finding${confirmed.length !== 1 ? "s" : ""} of ${findings.length} total`
@@ -157,7 +226,21 @@ program
       }
     }
 
-    console.log(chalk.dim("\n  Reporter: Sprint 5\n"));
+    const spinner6 = ora("Writing report...").start();
+    try {
+      const report = await generateReport(findings, config);
+      spinner6.succeed(
+        `Report written — ${report.confirmedCount} confirmed, ${report.inconclusiveCount} inconclusive`
+      );
+      console.log();
+      console.log(chalk.bold("  Markdown:") + ` ${report.markdownPath}`);
+      console.log(chalk.bold("  JSON:    ") + ` ${report.jsonPath}`);
+      console.log();
+    } catch (err) {
+      spinner6.fail("Report generation failed");
+      console.error(chalk.red(err instanceof Error ? err.message : String(err)));
+      process.exit(1);
+    }
   });
 
 program.parse();
