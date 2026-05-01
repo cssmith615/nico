@@ -1,0 +1,205 @@
+name: Nico AI Pentest
+description: Run Nico autonomous AI pentest against a running target application and report findings.
+author: cssmith615
+
+branding:
+  icon: shield
+  color: red
+
+inputs:
+  target-url:
+    description: URL of the running target application (must be reachable from the runner).
+    required: true
+  source-path:
+    description: Path to the application source code. Either source-path or openapi-path is required.
+    required: false
+    default: ''
+  openapi-path:
+    description: Path to an OpenAPI/Swagger JSON spec. Alternative to source-path.
+    required: false
+    default: ''
+  scope:
+    description: Comma-separated vuln classes to scan (sqli, xss, auth, ssrf, idor).
+    required: false
+    default: 'sqli,xss,auth'
+  output-dir:
+    description: Directory where Nico writes the timestamped report folder.
+    required: false
+    default: './nico-report'
+  fail-on-severity:
+    description: 'Fail the job when any finding meets this severity. One of: critical | high | medium | low | none.'
+    required: false
+    default: 'high'
+  comment-pr:
+    description: Post a sticky summary comment on the PR (true/false). Ignored on push events.
+    required: false
+    default: 'true'
+  anthropic-api-key:
+    description: Anthropic API key. Pass as `${{ secrets.ANTHROPIC_API_KEY }}`.
+    required: true
+
+outputs:
+  report-dir:
+    description: Path to the timestamped report directory.
+    value: ${{ steps.locate.outputs.dir }}
+  report-md:
+    description: Path to report.md.
+    value: ${{ steps.locate.outputs.md }}
+  report-json:
+    description: Path to report.json.
+    value: ${{ steps.locate.outputs.json }}
+  confirmed-count:
+    description: Number of confirmed findings.
+    value: ${{ steps.locate.outputs.confirmed }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v3
+      with:
+        version: 9
+
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: pnpm
+        cache-dependency-path: ${{ github.action_path }}/pnpm-lock.yaml
+
+    - name: Install Nico
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: pnpm install --frozen-lockfile
+
+    - name: Build Nico
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: pnpm build
+
+    - name: Run scan
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        NICO_TARGET: ${{ inputs.target-url }}
+        NICO_SOURCE: ${{ inputs.source-path }}
+        NICO_OPENAPI: ${{ inputs.openapi-path }}
+        NICO_SCOPE: ${{ inputs.scope }}
+        NICO_OUTPUT: ${{ inputs.output-dir }}
+        NICO_PATH: ${{ github.action_path }}
+      run: |
+        if [ -z "$NICO_SOURCE" ] && [ -z "$NICO_OPENAPI" ]; then
+          echo "::error::Either source-path or openapi-path is required"
+          exit 1
+        fi
+        ARGS=("--target" "$NICO_TARGET" "--scope" "$NICO_SCOPE" "--output" "$NICO_OUTPUT")
+        if [ -n "$NICO_SOURCE" ]; then
+          ARGS+=("--source" "$NICO_SOURCE")
+        fi
+        if [ -n "$NICO_OPENAPI" ]; then
+          ARGS+=("--openapi" "$NICO_OPENAPI")
+        fi
+        node "$NICO_PATH/dist/cli/index.js" scan "${ARGS[@]}"
+
+    - name: Locate latest report
+      id: locate
+      shell: bash
+      env:
+        NICO_OUTPUT: ${{ inputs.output-dir }}
+      run: |
+        REPORT_DIR=$(ls -1dt "$NICO_OUTPUT"/*/ 2>/dev/null | head -1)
+        if [ -z "$REPORT_DIR" ]; then
+          echo "::warning::No report directory found under $NICO_OUTPUT"
+          exit 0
+        fi
+        REPORT_DIR=${REPORT_DIR%/}
+        REPORT_JSON="$REPORT_DIR/report.json"
+        REPORT_MD="$REPORT_DIR/report.md"
+        if [ ! -f "$REPORT_JSON" ]; then
+          echo "::warning::report.json missing at $REPORT_JSON"
+          exit 0
+        fi
+        CONFIRMED=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf-8")).summary.confirmed)' "$REPORT_JSON")
+        {
+          echo "dir=$REPORT_DIR"
+          echo "json=$REPORT_JSON"
+          echo "md=$REPORT_MD"
+          echo "confirmed=$CONFIRMED"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Upload report artifact
+      if: always() && steps.locate.outputs.dir != ''
+      uses: actions/upload-artifact@v4
+      with:
+        name: nico-report
+        path: ${{ steps.locate.outputs.dir }}
+
+    - name: Post PR comment
+      if: github.event_name == 'pull_request' && inputs.comment-pr == 'true' && steps.locate.outputs.json != ''
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = '${{ steps.locate.outputs.json }}';
+          const report = JSON.parse(fs.readFileSync(path, 'utf-8'));
+          const marker = '<!-- nico-pentest-report -->';
+          const sevCounts = { critical: 0, high: 0, medium: 0, low: 0 };
+          for (const f of report.findings) {
+            if (sevCounts[f.severity] !== undefined) sevCounts[f.severity]++;
+          }
+          const findingTable = report.findings.length === 0
+            ? '_No confirmed vulnerabilities._'
+            : '| Severity | Score | Endpoint | Class | ID |\n|---|---|---|---|---|\n' +
+              report.findings.map(f =>
+                `| ${f.severity} | ${(f.score ?? '').toString()} | \`${f.method} ${f.route}\` | ${f.vulnClass} | ${f.id} |`
+              ).join('\n');
+          const runUrl = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+          const body = [
+            marker,
+            '## Nico Pentest Report',
+            '',
+            `**Target:** \`${report.target}\``,
+            `**Confirmed:** ${report.summary.confirmed} · **Inconclusive:** ${report.summary.inconclusive}`,
+            `**Severity:** crit ${sevCounts.critical} · high ${sevCounts.high} · med ${sevCounts.medium} · low ${sevCounts.low}`,
+            '',
+            findingTable,
+            '',
+            `[Full report (artifact)](${runUrl})`,
+          ].join('\n');
+
+          const { owner, repo } = context.repo;
+          const issue_number = context.issue.number;
+          const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number });
+          const existing = comments.find(c => c.body && c.body.includes(marker));
+          if (existing) {
+            await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+          } else {
+            await github.rest.issues.createComment({ owner, repo, issue_number, body });
+          }
+
+    - name: Severity gate
+      if: inputs.fail-on-severity != 'none' && steps.locate.outputs.json != ''
+      shell: bash
+      env:
+        REPORT_JSON: ${{ steps.locate.outputs.json }}
+        THRESHOLD: ${{ inputs.fail-on-severity }}
+      run: |
+        node -e '
+          const fs = require("fs");
+          const SEV = { critical: 4, high: 3, medium: 2, low: 1 };
+          const threshold = SEV[process.env.THRESHOLD];
+          if (threshold === undefined) {
+            console.error(`Invalid fail-on-severity: ${process.env.THRESHOLD}`);
+            process.exit(2);
+          }
+          const report = JSON.parse(fs.readFileSync(process.env.REPORT_JSON, "utf-8"));
+          const failing = (report.findings || []).filter(f => SEV[f.severity] >= threshold);
+          if (failing.length > 0) {
+            console.error(`Found ${failing.length} finding(s) at or above ${process.env.THRESHOLD} severity:`);
+            for (const f of failing) {
+              console.error(`  - [${f.severity}] ${f.method} ${f.route} (${f.vulnClass})`);
+            }
+            process.exit(1);
+          }
+          console.log("Severity gate passed.");
+        '

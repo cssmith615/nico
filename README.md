@@ -8,9 +8,9 @@ Claude maps the attack surface, generates the exploits, and judges the results. 
 
 ## Status
 
-**Sprint 0.2 complete** — baseline response diffing, XSS/auth/SSRF/IDOR templates, and OpenAPI/Swagger JSON ingestion.
+**Sprint 0.3 in progress** — GitHub Actions CI/CD integration: internal CI workflow + reusable Action so Nico can drop into any PR pipeline.
 
-Sprint 0.3 next: GitHub Actions CI/CD integration.
+Previous: 0.2 — baseline response diffing, XSS/auth/SSRF/IDOR templates, OpenAPI/Swagger JSON ingestion.
 
 ## Architecture
 
@@ -108,9 +108,56 @@ Expected confirmed findings:
 |---|---|
 | v0.1 | SQL injection |
 | v0.2 | XSS, auth bypass, SSRF, IDOR, OpenAPI ingestion |
-| v0.3 | GitHub Actions CI/CD |
+| v0.3 | GitHub Actions CI + reusable Action |
 | v0.4 | Report dashboard |
 | v0.5 | CORS, business logic, correlation |
+
+## GitHub Action
+
+Nico ships as a reusable composite action you can drop into any pipeline. A copy-paste workflow lives at [`examples/workflows/nico-scan.yml`](examples/workflows/nico-scan.yml).
+
+```yaml
+- name: Run Nico
+  uses: cssmith615/nico@v0.1
+  with:
+    target-url: http://localhost:3000
+    source-path: ./
+    scope: sqli,xss,auth
+    fail-on-severity: high
+    anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+### Action inputs
+
+| Input | Default | Required | Description |
+|---|---|---|---|
+| `target-url` | — | yes | URL of the running target. Must be reachable from the runner. |
+| `source-path` | — | one of | Path to source. Either this or `openapi-path` must be set. |
+| `openapi-path` | — | one of | Path to OpenAPI/Swagger JSON. Alternative to `source-path`. |
+| `scope` | `sqli,xss,auth` | no | Comma-separated vuln classes. |
+| `output-dir` | `./nico-report` | no | Where Nico writes the timestamped report directory. |
+| `fail-on-severity` | `high` | no | Fail the job at this severity or above. `none` to disable gating. |
+| `comment-pr` | `true` | no | Post a sticky summary comment on PR events. |
+| `anthropic-api-key` | — | yes | Pass as a secret. |
+
+### What the Action does
+
+- Builds Nico in `${{ github.action_path }}` and runs `nico scan` with your inputs.
+- Uploads `report.md` + `report.json` (and any screenshots) as the `nico-report` artifact.
+- On PRs, posts or updates a sticky comment with severity counts and a findings table.
+- Exits non-zero when any finding meets `fail-on-severity` so the PR can be gated.
+
+### Permissions
+
+The calling job needs `pull-requests: write` for sticky-comment updates. Push events skip the comment step automatically.
+
+### Secrets
+
+Add `ANTHROPIC_API_KEY` to your repo's Actions secrets. The Action does not need the key to be in `.env`.
+
+### Starting the target
+
+The Action assumes the target is already running and reachable at `target-url`. Bring it up in an earlier step (docker, docker compose, `pnpm dev`, etc.) and tear it down with an `if: always()` step. The example workflow demonstrates the pattern with OWASP Juice Shop.
 
 ## Pre-flight checks
 

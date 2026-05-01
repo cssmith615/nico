@@ -1,0 +1,50 @@
+# Drop-in workflow for running Nico against your application on every PR.
+#
+# Prerequisites:
+#   1. Add ANTHROPIC_API_KEY to your repo's Actions secrets.
+#   2. Adjust the "Start target" step to actually launch your app (docker compose,
+#      pnpm dev, etc.). Nico requires a live target reachable from the runner.
+#
+# Outputs:
+#   - Sticky PR comment with a severity-bucketed findings summary.
+#   - report.md + report.json uploaded as a build artifact.
+#   - Job fails if any finding meets fail-on-severity (default: high).
+
+name: Pentest
+
+on:
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  nico:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Replace this step with whatever brings up your application.
+      # Nico needs a live HTTP target reachable from the runner.
+      - name: Start target
+        run: |
+          docker run -d --rm -p 3000:3000 --name target bkimminich/juice-shop
+          for i in $(seq 1 30); do
+            curl -fs http://localhost:3000/ > /dev/null && break
+            sleep 2
+          done
+
+      - name: Run Nico
+        uses: cssmith615/nico@v0.1
+        with:
+          target-url: http://localhost:3000
+          source-path: ./
+          scope: sqli,xss,auth
+          fail-on-severity: high
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Stop target
+        if: always()
+        run: docker rm -f target || true

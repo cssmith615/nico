@@ -4,45 +4,44 @@ Multi-agent handoff doc. Cold-start agents read this first.
 
 ## Status
 
-**Sprint 6 — live pipeline confirmed end-to-end against OWASP Juice Shop, 2026-05-01.**
+**Sprint 0.3 in progress.** Internal CI + reusable GitHub Action drafted, awaiting first push to validate.
 
-```
-CLI → preflight → orchestrator (Claude) → exploits (Claude) → sandbox (Docker)
-   → validation (heuristics + Claude judge) → reporter (md + json)
-```
+### Recent ship history
 
-Reproduced the Shannon-class auth-bypass-via-SQLi on `POST /rest/user/login` (email field). Sandbox returned a valid admin JWT (decoded: `admin@juice-sh.op` / role: admin). Judge confirmed via response inspection. Report at `reports/2026-05-01T15-11-09-952Z/`.
+- **0.1 — v0.1 ship.** End-to-end pipeline confirmed against OWASP Juice Shop, 2026-05-01. Reproduced the Shannon-class auth-bypass-via-SQLi on `POST /rest/user/login` (decoded admin JWT in evidence). Sample report at `reports/2026-05-01T15-11-09-952Z/`.
+- **0.2a — Baseline diff comparison.** Sandbox now runs a benign baseline alongside each exploit; `ExploitResult.evidence.diff` carries status/length/SQL-signal/timing deltas. Codex hardening pass fixed shell-quoting and heredoc expansion bugs.
+- **0.2b — Auth/SSRF/IDOR templates.** Per-class prompt templates added to `prompts/`.
+- **0.2c — OpenAPI ingestion.** CLI accepts `--openapi <spec>` as an alternative to `--source`. Orchestrator parses real request body params instead of synthesizing a generic body vector.
+- **0.2 cleanup (Codex).** ESLint config added, vitest/vite bumped past advisories, `pnpm audit --audit-level moderate` clean.
 
-**v0.1 ship is unblocked.** User owns final commit + git tag.
+### 0.3 deliverables
 
-## Sprint 6 — what's done
+- `.github/workflows/ci.yml` — push + PR triggers, Node 18/20 matrix, runs lint → typecheck → test → build → audit.
+- `action.yml` (composite) — drop-in GitHub Action: scan + sticky PR comment + artifact upload + severity gate.
+- `examples/workflows/nico-scan.yml` — copy-paste consumer workflow.
+- README updated with Action inputs/secrets/permissions docs.
 
-- `src/cli/preflight.ts` — env keys, Docker daemon, source path, target reachability checks. Wired into CLI before any spend.
-- `sample-targets/juice-shop.json` — config for reproducing Shannon's findings.
-- `README.md` — full usage, Juice Shop quickstart, sample report excerpt, sandbox containment notes.
-- `tests/e2e.test.ts` — mocked-API smoke test exercising orchestrator → exploits → sandbox → validation → reporter; catches wiring regressions without spend.
+### 0.3 still open
 
-## Sprint 6 — open
-
-1. **Live scan against Juice Shop** — needs user to spin up Juice Shop (`docker run -p 3000:3000 bkimminich/juice-shop`), have `.env` populated, then run the CLI. Expected confirmed findings: SQLi on `POST /rest/user/login` via `email`, plus the auth bypass downstream of it.
-2. **Prompt tuning** — only meaningful after a live run; tune based on actual false positives / misses, not speculation.
-3. **v0.1 tag** — owned by user. Stage everything for review first.
+- First green CI run on master (need a push to verify).
+- Tag `v0.3` (or `v0.1` for the action ref) once internal CI is green and the Action is exercised end-to-end against a real PR.
+- Optional follow-ups deferred: Docker image to ghcr.io for the Action, `start-target-cmd` input, npm publish.
 
 ## Architecture decisions on file
 
 - TypeScript throughout, ESM, pnpm.
 - Claude Sonnet (claude-sonnet-4-6) for orchestrator + exploit generator + judge — all three use prompt caching on the system prompt.
-- v0.1 ships single-vendor on Claude. OpenAI exploit generator (originally GPT-5.5) is deferred — code in `src/exploit/generator.ts` was pivoted to Anthropic to ship now without a second key. Exploit model override via `NICO_EXPLOIT_MODEL` env. Per-class prompt templates live in `prompts/`.
+- v0.1+ ships single-vendor on Claude. OpenAI exploit generator (originally GPT-5.5) deferred. `NICO_EXPLOIT_MODEL` env overrides the model.
 - Docker sandbox is least-privilege: `--cap-drop=ALL`, `--security-opt=no-new-privileges`, read-only root, tmpfs scratch, mem/CPU/PID caps, `host.docker.internal` rewrite for non-Linux hosts.
 - Generated scripts pass syntax check (`bash -n` / `node --check`) plus a policy scan (no docker access, no package installs, no credential reads) before they hit a container.
-- Validator is two-stage: rule-based heuristics catch obvious confirmations and false positives without an API call; only ambiguous cases hit the Claude judge.
+- Validator is two-stage: rule-based heuristics + Claude judge. Baseline diff (0.2a) feeds both: heuristics gate on `confirmedByDiff`, judge gets diff summary in its prompt.
 - Reporter writes to `<outputDir>/<ISO-timestamp>/{report.md,report.json,evidence/}`. Severity is CVSS-lite (bucket + 0–10 score + rationale string).
 
 ## Test posture
 
-- 60 tests passing across 6 files (5 from prior sprints + e2e + reporter).
-- `pnpm test --run`, `pnpm typecheck`, `pnpm build` all clean.
-- No real Docker / API calls in CI — `tests/execution.integration.ts` is the integration target if needed (does not exist yet).
+- 103 tests passing across the suite.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test --run`, `pnpm build`, `pnpm audit --audit-level moderate` all clean (Codex review, 2026-05-01).
+- No real Docker / API calls in CI — every test mocks the SDK + docker runner.
 
 ## Coordination
 
