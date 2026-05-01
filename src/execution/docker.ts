@@ -29,9 +29,9 @@ function toDockerVolumePath(hostPath: string): string {
   return hostPath.replace(/\\/g, "/").replace(/^([A-Za-z]):/, (_, d) => `//${d.toLowerCase()}`);
 }
 
-function adaptForDocker(script: string): string {
-  // On non-Linux, localhost inside Docker doesn't reach the host
-  if (process.platform === "linux") return script;
+export function adaptForDocker(script: string): string {
+  // localhost inside the sandbox container points at the sandbox itself, not the target app.
+  // runDockerContainer maps host.docker.internal to the Docker host on Linux and Docker Desktop.
   return script
     .replace(/\blocalhost\b/g, "host.docker.internal")
     .replace(/127\.0\.0\.1/g, "host.docker.internal");

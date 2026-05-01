@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseEvidence } from "../src/execution/runner.js";
+import { adaptForDocker } from "../src/execution/docker.js";
 
 // All tests here are pure unit tests — no Docker required.
 // Integration tests live in tests/execution.integration.ts
@@ -60,6 +61,15 @@ describe("parseEvidence — no baseline", () => {
     const result = parseEvidence(json, "sqli-005", 0);
     expect(result.confirmed).toBe(false);
     expect(result.evidence.errorMessage).toContain("expected schema");
+  });
+});
+
+describe("adaptForDocker", () => {
+  it("rewrites loopback targets so sandbox containers can reach the Docker host", () => {
+    const script = "curl http://localhost:3000 && curl http://127.0.0.1:4000";
+    expect(adaptForDocker(script)).toBe(
+      "curl http://host.docker.internal:3000 && curl http://host.docker.internal:4000"
+    );
   });
 });
 
