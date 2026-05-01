@@ -35,7 +35,7 @@ inputs:
     required: false
     default: 'true'
   anthropic-api-key:
-    description: Anthropic API key. Pass as `${{ secrets.ANTHROPIC_API_KEY }}`.
+    description: Anthropic API key. Pass your repository secret from the caller workflow.
     required: true
 
 outputs:

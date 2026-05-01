@@ -48,7 +48,7 @@ jobs:
           exit 1
 
       - name: Run Nico reusable Action
-        uses: cssmith615/nico@master
+        uses: ./
         with:
           target-url: http://localhost:3000
           source-path: ./juice-shop-src
