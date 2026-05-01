@@ -112,6 +112,27 @@ describe("compareResponses", () => {
     });
     expect(result.diffSummary).toBe("no meaningful diff vs baseline");
   });
+
+  it("detects CORS origin reflection with credentials", () => {
+    const baseline = makeBaseline({ responseBody: "ok" });
+    const result = compareResponses(baseline, {
+      statusCode: 200,
+      responseBody: "ACAO=https://evil.example.com|ACAC=true|origin=https://evil.example.com|status=200",
+      responseTimeMs: 130,
+    });
+    expect(result.confirmedByDiff).toBe(true);
+    expect(result.diffSummary).toContain("CORS misconfig");
+  });
+
+  it("does not confirm CORS without credentials", () => {
+    const baseline = makeBaseline({ responseBody: "ok" });
+    const result = compareResponses(baseline, {
+      statusCode: 200,
+      responseBody: "ACAO=https://evil.example.com|ACAC=false|origin=https://evil.example.com|status=200",
+      responseTimeMs: 130,
+    });
+    expect(result.confirmedByDiff).toBe(false);
+  });
 });
 
 // --- generateBaselineScript ---

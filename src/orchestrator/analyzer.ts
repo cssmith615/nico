@@ -9,11 +9,11 @@ Return ONLY a valid JSON array. No explanation, no markdown, no code fences. Raw
 Each element must match this exact schema:
 {
   "id": "string — unique, e.g. sqli-001",
-  "vulnClass": "sqli" | "xss" | "auth" | "ssrf" | "idor",
+  "vulnClass": "sqli" | "xss" | "auth" | "ssrf" | "idor" | "cors",
   "route": "string — HTTP path, e.g. /api/users",
   "method": "GET" | "POST" | "PUT" | "DELETE" | "PATCH",
   "inputName": "string — exact parameter name",
-  "inputType": "query" | "body" | "header" | "cookie",
+  "inputType": "query" | "body" | "header" | "cookie" | "path",
   "sourceFile": "string — relative file path",
   "sourceLine": number or null,
   "riskScore": number between 0 and 10,
@@ -23,6 +23,7 @@ Each element must match this exact schema:
 Rules:
 - Only include vectors with a realistic exploitation path
 - Be specific: name the exact input, route, and the vulnerable code pattern
+- For CORS, use inputName "Origin" and inputType "header" when code reflects arbitrary origins or enables credentials
 - Order by riskScore descending
 - Omit theoretical findings with no clear sink`;
 

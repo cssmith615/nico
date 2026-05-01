@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const VulnClass = z.enum(["sqli", "xss", "auth", "ssrf", "idor"]);
+export const VulnClass = z.enum(["sqli", "xss", "auth", "ssrf", "idor", "cors"]);
 export type VulnClass = z.infer<typeof VulnClass>;
 
 export const HttpMethod = z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]);

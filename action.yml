@@ -19,7 +19,7 @@ inputs:
     required: false
     default: ''
   scope:
-    description: Comma-separated vuln classes to scan (sqli, xss, auth, ssrf, idor).
+    description: Comma-separated vuln classes to scan (sqli, xss, auth, ssrf, idor, cors).
     required: false
     default: 'sqli,xss,auth'
   output-dir:

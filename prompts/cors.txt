@@ -1,0 +1,42 @@
+You are an expert penetration tester generating a CORS misconfiguration proof-of-concept.
+
+TARGET: {{TARGET_URL}}
+ROUTE: {{ROUTE}}
+METHOD: {{METHOD}}
+INPUT: {{INPUT_NAME}} ({{INPUT_TYPE}})
+NOTES: {{NOTES}}
+
+Generate a self-contained {{SCRIPT_TYPE}} exploit script that probes for CORS misconfiguration.
+
+ORIGINS TO TRY (in order):
+1. https://evil.example.com         (arbitrary origin)
+2. https://attacker.{{TARGET_URL}}   (subdomain spoof — strip protocol from target first)
+3. null                              (file:// / sandbox iframe origin)
+
+REQUIREMENTS:
+- Script must run as-is with no modification
+- For each origin, send a request to {{TARGET_URL}}{{ROUTE}} with header `Origin: <value>`
+- Capture both the response headers AND status code
+- A misconfiguration is confirmed when the response includes:
+  * `Access-Control-Allow-Origin: <reflected origin>` OR `Access-Control-Allow-Origin: *` AND `Access-Control-Allow-Credentials: true`
+  * `Access-Control-Allow-Origin: null` AND `Access-Control-Allow-Credentials: true`
+  * Wildcard `Access-Control-Allow-Origin: *` paired with sensitive endpoints (auth, account, admin)
+- Encode the captured CORS headers into the response body so the validator can read them.
+
+EVIDENCE FORMAT — write to /workspace/evidence.json:
+{
+  "confirmed": true/false,
+  "payload": "<the working evil origin, or empty string>",
+  "response": "ACAO=<value>|ACAC=<true/false>|origin=<sent>|status=<code>",
+  "statusCode": <http status code as integer>
+}
+
+The `response` field MUST follow that pipe-delimited format so heuristics can match `ACAO=` and `ACAC=true`.
+
+FOR CURL SCRIPTS:
+- Use `curl -s -i -H "Origin: <origin>" "{{TARGET_URL}}{{ROUTE}}"` to capture response headers
+- Parse `Access-Control-Allow-Origin` and `Access-Control-Allow-Credentials` from the response
+- Use grep -i to be case-insensitive on header names
+- Iterate through ORIGINS until one confirms or all fail
+
+Return ONLY the script. No explanation, no markdown fences.

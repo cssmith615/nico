@@ -49,7 +49,7 @@ function inferVulnClasses(
 }
 
 function baseRisk(vulnClass: VulnClass, method: OpenApiMethod): number {
-  const scores: Record<VulnClass, number> = { ssrf: 9, sqli: 8, auth: 8, idor: 7, xss: 6 };
+  const scores: Record<VulnClass, number> = { ssrf: 9, sqli: 8, auth: 8, idor: 7, cors: 6, xss: 6 };
   const boost = ["post", "put", "delete", "patch"].includes(method) ? 1 : 0;
   return Math.min(10, scores[vulnClass] + boost);
 }
@@ -157,6 +157,10 @@ export async function ingestOpenAPI(specPath: string, scope: VulnClass[]): Promi
         params.push(...requestBodyParams(op.requestBody));
       }
 
+      if (scope.includes("cors")) {
+        params.push({ name: "Origin", in: "header" });
+      }
+
       const seen = new Set<string>();
       for (const param of params) {
         if (!param.name || !param.in) continue;
@@ -164,7 +168,9 @@ export async function ingestOpenAPI(specPath: string, scope: VulnClass[]): Promi
         if (seen.has(key)) continue;
         seen.add(key);
 
-        const classes = inferVulnClasses(param.name, param.in, method, scope);
+        const classes = param.name === "Origin" && param.in === "header" && scope.includes("cors")
+          ? ["cors" as const]
+          : inferVulnClasses(param.name, param.in, method, scope);
         for (const vulnClass of classes) {
           counters[vulnClass] = (counters[vulnClass] ?? 0) + 1;
           vectors.push({

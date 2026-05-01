@@ -57,5 +57,18 @@ export function applyHeuristics(
   // XSS with a screenshot is strong regardless of diff
   if (vector.vulnClass === "xss" && result.evidence.screenshotPath) return "likely_confirmed";
 
+  // CORS: confirmed when ACAO reflects an attacker origin AND credentials=true
+  if (vector.vulnClass === "cors") {
+    const acao = /acao=([^|]+)/i.exec(body);
+    const acac = /acac=true/i.test(body);
+    if (acao && acac) {
+      const origin = acao[1].trim();
+      // Wildcard with credentials, or origin reflection (any non-empty, non-target origin)
+      if (origin === "*" || /evil|attacker|null/i.test(origin)) return "likely_confirmed";
+    }
+    // No CORS misconfiguration detected — false positive
+    if (!acao || (!acac && !/allow-credentials:\s*true/i.test(body))) return "likely_false_positive";
+  }
+
   return "send_to_judge";
 }

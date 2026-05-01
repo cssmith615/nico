@@ -14,6 +14,7 @@ const BASE_SCORE: Record<VulnClass, number> = {
   sqli: 8.0,
   ssrf: 7.5,
   idor: 6.0,
+  cors: 6.0,
   xss: 5.5,
 };
 
@@ -61,6 +62,12 @@ export function scoreFinding(finding: ValidatedFinding): SeverityScore {
   if (vector.vulnClass === "xss" && result.evidence.screenshotPath) {
     score += 0.7;
     reasons.push("JS execution captured (+0.7)");
+  }
+
+  // CORS with credentials=true and origin reflection is the dangerous combo
+  if (vector.vulnClass === "cors" && /acac=true|allow-credentials:\s*true/i.test(body)) {
+    score += 2.5;
+    reasons.push("CORS credentials=true (+2.5)");
   }
 
   // 200 OK on injection means no input filtering at all

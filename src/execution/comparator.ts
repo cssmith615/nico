@@ -25,6 +25,12 @@ const DATA_EXFIL_SIGNALS = [
   "bearer",
 ];
 
+interface CorsEvidence {
+  acao?: string;
+  acac: boolean;
+  origin?: string;
+}
+
 interface ExploitEvidence {
   statusCode?: number;
   responseBody?: string;
@@ -40,6 +46,37 @@ function parseJsonLength(body: string): number {
     // Not JSON
   }
   return -1;
+}
+
+function parseCorsEvidence(body: string): CorsEvidence | undefined {
+  const parts = body
+    .split("|")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const values = new Map<string, string>();
+  for (const part of parts) {
+    const idx = part.indexOf("=");
+    if (idx < 0) continue;
+    values.set(part.slice(0, idx).trim().toLowerCase(), part.slice(idx + 1).trim());
+  }
+
+  const acao = values.get("acao");
+  const acac = /^true$/i.test(values.get("acac") ?? "");
+  const origin = values.get("origin");
+  if (!acao && !acac && !origin) return undefined;
+  return { acao, acac, origin };
+}
+
+function isCorsMisconfig(cors: CorsEvidence | undefined): boolean {
+  if (!cors?.acao || !cors.acac) return false;
+  const acao = cors.acao.toLowerCase();
+  const origin = cors.origin?.toLowerCase();
+  return (
+    acao === "*" ||
+    acao === "null" ||
+    (origin !== undefined && origin.length > 0 && acao === origin) ||
+    /evil|attacker/.test(acao)
+  );
 }
 
 export function compareResponses(
@@ -72,10 +109,13 @@ export function compareResponses(
 
   // Time-based blind: exploit took >2s longer than baseline
   const timeBased = responseTimeDeltaMs > 2000;
+  const corsEvidence = parseCorsEvidence(exploit.responseBody ?? "");
+  const corsMisconfig = isCorsMisconfig(corsEvidence);
 
   // Determine confirmation by diff — independent of what the script claimed
   const confirmedByDiff =
     newSqlSignals.length > 0 ||       // new SQL error in exploit only
+    corsMisconfig ||                  // CORS header reflection + credentials
     timeBased ||                        // time-based blind detected
     jsonLengthDelta > 1 ||             // more JSON items returned (threshold avoids single-key object growth)
     (newDataSignals.length >= 2 && lengthDelta > 50) || // auth bypass data
@@ -87,6 +127,9 @@ export function compareResponses(
   // Human-readable summary for reporter and judge context
   const signals: string[] = [];
   if (newSqlSignals.length > 0) signals.push(`new SQL signals: ${newSqlSignals.join(", ")}`);
+  if (corsMisconfig && corsEvidence) {
+    signals.push(`CORS misconfig: ACAO=${corsEvidence.acao ?? "?"}, ACAC=${corsEvidence.acac}`);
+  }
   if (timeBased) signals.push(`time delta: +${responseTimeDeltaMs}ms`);
   if (jsonLengthDelta > 0) signals.push(`JSON grew by ${jsonLengthDelta} items`);
   if (newDataSignals.length > 0) signals.push(`new data keywords: ${newDataSignals.join(", ")}`);

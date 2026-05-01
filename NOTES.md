@@ -4,7 +4,7 @@ Multi-agent handoff doc. Cold-start agents read this first.
 
 ## Status
 
-**Sprint 0.4 in progress.** Self-contained interactive HTML dashboard added to the reporter — `report.html` written alongside `report.md` and `report.json`. Filter by severity / vuln class, free-text search, expandable PoC blocks, severity-bucketed summary cards.
+**Sprint 0.5a in progress.** CORS misconfiguration detection is being added after 0.4 shipped. Core CORS enum/template/severity/comparator/OpenAPI-vector/heuristic/test work is complete in the current Codex handoff.
 
 ### Recent ship history
 
@@ -14,11 +14,14 @@ Multi-agent handoff doc. Cold-start agents read this first.
 - **0.2c — OpenAPI ingestion.** CLI accepts `--openapi <spec>` as an alternative to `--source`. Orchestrator parses real request body params instead of synthesizing a generic body vector.
 - **0.2 cleanup (Codex).** ESLint config added, vitest/vite bumped past advisories, `pnpm audit --audit-level moderate` clean.
 - **0.3 — GitHub Actions CI + reusable Action.** Internal CI green on Node 20 + 22 (vitest 4 dropped Node 18 support). `.github/workflows/ci.yml` runs lint → typecheck → test → build → audit. `action.yml` composite Action: scan + sticky PR comment + artifact upload + severity gate. Example consumer workflow at `examples/workflows/nico-scan.yml`. **First-PR validation of the Action itself still open** before tagging.
+- **0.4 — Static HTML dashboard.** Self-contained interactive `report.html` written alongside `report.md` and `report.json`. Filter by severity / vuln class, free-text search, expandable PoC blocks, severity-bucketed summary cards. CI green on Node 20 + 22.
+- **0.5a — CORS detection.** Adds `cors` vuln class, prompt template, OpenAPI synthetic `Origin` header vectors, source analyzer prompt support, CORS comparator signal, heuristics, severity scoring, and tests.
 
-### 0.4 still open
+### 0.5 still open
 
-- First green CI run with the new HTML output (verifying via push).
-- Visual polish pass once a real Juice Shop scan generates an HTML report — the only thing tested today is structure, not aesthetics.
+- Business logic detection.
+- Multi-vector correlation / chained findings.
+- Real PR validation of the reusable Action with Juice Shop, ideally also producing an HTML artifact for visual review.
 
 ### Parked for paid-tier discussion
 
@@ -42,12 +45,12 @@ Multi-agent handoff doc. Cold-start agents read this first.
 
 ## Test posture
 
-- 103 tests passing across the suite.
+- 115 tests passing across the suite.
 - `pnpm lint`, `pnpm typecheck`, `pnpm test --run`, `pnpm build`, `pnpm audit --audit-level moderate` all clean (Codex review, 2026-05-01).
 - No real Docker / API calls in CI — every test mocks the SDK + docker runner.
 
 ## Coordination
 
 - Sonnet 4.6 is the primary builder. Codex handles review, debug, security audits, architecture review.
-- This Opus 4.7 instance is relief — picks up when Sonnet is on break. Does not commit; stages changes for user review.
+- Codex/Opus relief picks up when Sonnet is on break. Commit/push only when the user explicitly asks or the active handoff requests it.
 - Multi-agent handoffs land here. Update on each significant state change.

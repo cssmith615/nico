@@ -132,6 +132,46 @@ describe("applyHeuristics", () => {
     });
     expect(applyHeuristics(r, makeVector({ vulnClass: "auth" }))).toBe("send_to_judge");
   });
+
+  it("returns likely_confirmed for reflected CORS origin with credentials", () => {
+    const r = makeResult({
+      confirmed: true,
+      evidence: {
+        responseBody: "ACAO=https://evil.example.com|ACAC=true|origin=https://evil.example.com|status=200",
+        statusCode: 200,
+        diff: {
+          statusChanged: false,
+          lengthDelta: 70,
+          newSqlSignals: [],
+          responseTimeDeltaMs: 10,
+          jsonLengthDelta: 0,
+          confirmedByDiff: true,
+          diffSummary: "CORS misconfig: ACAO=https://evil.example.com, ACAC=true",
+        },
+      },
+    });
+    expect(applyHeuristics(r, makeVector({ vulnClass: "cors", inputName: "Origin", inputType: "header" }))).toBe("likely_confirmed");
+  });
+
+  it("returns likely_false_positive for CORS without ACAC", () => {
+    const r = makeResult({
+      confirmed: true,
+      evidence: {
+        responseBody: "ACAO=https://evil.example.com|ACAC=false|origin=https://evil.example.com|status=200",
+        statusCode: 200,
+        diff: {
+          statusChanged: false,
+          lengthDelta: 70,
+          newSqlSignals: [],
+          responseTimeDeltaMs: 10,
+          jsonLengthDelta: 0,
+          confirmedByDiff: true,
+          diffSummary: "body length delta: +70",
+        },
+      },
+    });
+    expect(applyHeuristics(r, makeVector({ vulnClass: "cors", inputName: "Origin", inputType: "header" }))).toBe("likely_false_positive");
+  });
 });
 
 // --- validateResults ---

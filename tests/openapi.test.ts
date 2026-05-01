@@ -82,6 +82,14 @@ describe("ingestOpenAPI — vector extraction", () => {
     expect(xss.some((v) => v.inputName === "content" || v.inputName === "description")).toBe(true);
   });
 
+  it("adds CORS Origin header vectors per operation", async () => {
+    const vectors = await ingestOpenAPI(specPath, ["cors"]);
+    expect(vectors.length).toBeGreaterThan(0);
+    expect(vectors.every((v) => v.vulnClass === "cors")).toBe(true);
+    expect(vectors.every((v) => v.inputName === "Origin" && v.inputType === "header")).toBe(true);
+    expect(vectors.some((v) => v.route === "/api/users" && v.method === "GET")).toBe(true);
+  });
+
   it("extracts JSON requestBody schema properties as body inputs", async () => {
     const spec = {
       openapi: "3.0.0",

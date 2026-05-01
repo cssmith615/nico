@@ -8,9 +8,10 @@ Claude maps the attack surface, generates the exploits, and judges the results. 
 
 ## Status
 
-**Sprint 0.4 in progress** — self-contained interactive HTML dashboard generated alongside `report.md` and `report.json`. Open directly from disk, filter by severity/class, search across findings.
+**Sprint 0.5a in progress** — CORS misconfiguration detection added on top of the shipped 0.1–0.4 pipeline.
 
 Previous:
+- 0.4 — self-contained interactive HTML dashboard generated alongside `report.md` and `report.json`
 - 0.3 — GitHub Actions CI + reusable Action for PR pipelines
 - 0.2 — baseline response diffing, XSS/auth/SSRF/IDOR templates, OpenAPI/Swagger JSON ingestion
 
@@ -58,7 +59,7 @@ pnpm dev scan \
 pnpm dev scan \
   --target http://localhost:3000 \
   --openapi ./openapi.json \
-  --scope sqli,xss,auth,ssrf,idor
+  --scope sqli,xss,auth,ssrf,idor,cors
 ```
 
 ### Flags
@@ -68,7 +69,7 @@ pnpm dev scan \
 | `-t, --target <url>` | required | URL of the running target application |
 | `-s, --source <path>` | optional | Local path to the application source code |
 | `--openapi <path>` | optional | OpenAPI/Swagger JSON spec; alternative to `--source` |
-| `--scope <vulns>` | `sqli` | Comma-separated vuln classes: `sqli,xss,auth,ssrf,idor` |
+| `--scope <vulns>` | `sqli` | Comma-separated vuln classes: `sqli,xss,auth,ssrf,idor,cors` |
 | `-o, --output <dir>` | `./reports` | Output directory for reports |
 | `--timeout <ms>` | `30000` | Sandbox timeout per exploit |
 | `--retries <n>` | `2` | Max retries on ambiguous results |
@@ -115,7 +116,8 @@ Expected confirmed findings:
 | v0.2 | XSS, auth bypass, SSRF, IDOR, OpenAPI ingestion |
 | v0.3 | GitHub Actions CI + reusable Action |
 | v0.4 | Self-contained HTML report dashboard |
-| v0.5 | CORS, business logic, correlation |
+| v0.5a | CORS |
+| v0.5 | Business logic, correlation |
 
 ## GitHub Action
 
@@ -127,7 +129,7 @@ Nico ships as a reusable composite action you can drop into any pipeline. A copy
   with:
     target-url: http://localhost:3000
     source-path: ./
-    scope: sqli,xss,auth
+    scope: sqli,xss,auth,cors
     fail-on-severity: high
     anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
@@ -139,7 +141,7 @@ Nico ships as a reusable composite action you can drop into any pipeline. A copy
 | `target-url` | — | yes | URL of the running target. Must be reachable from the runner. |
 | `source-path` | — | one of | Path to source. Either this or `openapi-path` must be set. |
 | `openapi-path` | — | one of | Path to OpenAPI/Swagger JSON. Alternative to `source-path`. |
-| `scope` | `sqli,xss,auth` | no | Comma-separated vuln classes. |
+| `scope` | `sqli,xss,auth` | no | Comma-separated vuln classes: `sqli,xss,auth,ssrf,idor,cors`. |
 | `output-dir` | `./nico-report` | no | Where Nico writes the timestamped report directory. |
 | `fail-on-severity` | `high` | no | Fail the job at this severity or above. `none` to disable gating. |
 | `comment-pr` | `true` | no | Post a sticky summary comment on PR events. |
