@@ -67,7 +67,7 @@ jobs:
 
       - name: Start Juice Shop
         run: |
-          docker run -d --name nico-juice-shop -p 3000:3000 bkimminich/juice-shop@sha256:a8139c141311c7f31fcf2e611125246928f703ee42827de33983fd9425d1b2f6
+          docker run -d --name nico-juice-shop --network host bkimminich/juice-shop@sha256:a8139c141311c7f31fcf2e611125246928f703ee42827de33983fd9425d1b2f6
           for i in {1..90}; do
             if curl -fsS http://localhost:3000 >/dev/null; then
               echo "Juice Shop is ready."
