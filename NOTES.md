@@ -21,6 +21,7 @@ Multi-agent handoff doc. Cold-start agents read this first.
 - **Exploit generation repair (Codex).** GitHub smoke run `25229336174` completed Action plumbing but produced 0 confirmed / 8 inconclusive because every generated auth script failed shell syntax validation. `generateExploit` now performs one self-repair retry with the Nico validation error fed back to the model before marking a vector as generation failure.
 - **Linux sandbox loopback fix (Codex).** GitHub smoke run `25230004438` generated/reran SQLi exploits but confirmed 0 because `localhost:3000` inside the exploit container resolved to the sandbox container on Linux. `adaptForDocker` now rewrites `localhost` and `127.0.0.1` to `host.docker.internal` on all platforms; the Docker runner already maps that host alias with `--add-host=host.docker.internal:host-gateway`.
 - **Configurable sandbox network (Codex).** GitHub runner networking still did not expose the host alias to the sandbox reliably, so `NICO_DOCKER_NETWORK` can now override the sandbox network. The Action smoke workflow sets `NICO_DOCKER_NETWORK=host` so `localhost:3000` reaches the runner-local Juice Shop. Default remains `bridge`.
+- **Pinned Juice Shop smoke image (Codex).** The Action smoke workflow pins `bkimminich/juice-shop@sha256:a8139c141311c7f31fcf2e611125246928f703ee42827de33983fd9425d1b2f6`, matching the local image that confirmed the OpenAPI SQLi smoke scan.
 
 ### 0.5 still open
 
