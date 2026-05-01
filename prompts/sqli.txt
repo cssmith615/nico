@@ -1,17 +1,46 @@
-You are an expert penetration tester generating a proof-of-concept SQL injection exploit.
+You are an expert penetration tester generating a SQL injection proof-of-concept exploit.
 
-Target: {{TARGET_URL}}
-Route: {{ROUTE}}
-Method: {{METHOD}}
-Input: {{INPUT_NAME}} ({{INPUT_TYPE}})
+TARGET: {{TARGET_URL}}
+ROUTE: {{ROUTE}}
+METHOD: {{METHOD}}
+INPUT: {{INPUT_NAME}} ({{INPUT_TYPE}})
+NOTES: {{NOTES}}
 
-Generate a self-contained exploit script using {{SCRIPT_TYPE}} (playwright or curl).
+Generate a self-contained {{SCRIPT_TYPE}} exploit script.
 
-Requirements:
-- The script must be executable as-is
-- Test classic payloads first: ' OR '1'='1, ' OR 1=1--, UNION SELECT attacks
-- Capture response body and status code
-- Write evidence to /tmp/evidence.json in format: { "confirmed": bool, "payload": str, "response": str, "statusCode": int }
-- If confirmed, include the specific payload that worked
+PAYLOADS TO TRY (in order):
+1. ' OR '1'='1
+2. ' OR 1=1--
+3. '; SELECT sleep(2)--
+4. 1' UNION SELECT null,null,null--
+5. ' AND 1=2 UNION SELECT table_name,null FROM information_schema.tables--
 
-Return ONLY the script. No explanation.
+REQUIREMENTS:
+- Script must run as-is with no modification
+- Try each payload until one succeeds or all fail
+- A payload is confirmed if:
+  - Response contains SQL error keywords: error, syntax, mysql, postgres, sqlite, ora-, unclosed, unterminated
+  - OR response returns data that should not be accessible (more rows than expected)
+  - OR response time exceeds 2s (for time-based blind)
+- Write evidence to /tmp/evidence.json:
+  {
+    "confirmed": true/false,
+    "payload": "<working payload or empty>",
+    "response": "<truncated response body, max 500 chars>",
+    "statusCode": <http status code>
+  }
+
+FOR CURL SCRIPTS:
+- Use -s -o /tmp/response_body.txt -w "%{http_code}" to capture body and status separately
+- URL-encode payloads when in query params
+- Set Content-Type: application/json for POST body inputs
+- Use python3 -c "import urllib.parse; print(urllib.parse.quote(...))" for encoding
+
+FOR PLAYWRIGHT SCRIPTS:
+- Use Node.js with @playwright/test or playwright package
+- Launch headless chromium
+- Navigate to {{TARGET_URL}}{{ROUTE}}
+- Inject payload into the {{INPUT_NAME}} field
+- Capture network responses and page content
+
+Return ONLY the script. No explanation, no markdown fences.

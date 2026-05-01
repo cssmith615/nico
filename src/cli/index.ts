@@ -5,6 +5,7 @@ import ora from "ora";
 import { VulnClass } from "../types/index.js";
 import type { ScanConfig } from "../types/index.js";
 import { runOrchestrator } from "../orchestrator/index.js";
+import { generateExploits } from "../exploit/index.js";
 
 const program = new Command();
 
@@ -72,7 +73,27 @@ program
       if (v.notes) console.log(chalk.dim(`         ${v.notes}`));
     }
 
-    console.log(chalk.dim("\n  Exploit generator: Sprint 2\n"));
+    const spinner2 = ora(`Generating exploits for ${vectors.length} vector${vectors.length !== 1 ? "s" : ""}...`).start();
+    let scripts;
+    try {
+      scripts = await generateExploits(vectors, config.targetUrl);
+      spinner2.succeed(`Generated ${scripts.length} exploit script${scripts.length !== 1 ? "s" : ""}`);
+    } catch (err) {
+      spinner2.fail("Exploit generation failed");
+      console.error(chalk.red(err instanceof Error ? err.message : String(err)));
+      process.exit(1);
+    }
+
+    console.log();
+    for (const s of scripts) {
+      const vector = vectors.find((v) => v.id === s.vectorId);
+      console.log(
+        chalk.dim(`  [${s.type}]`) + ` ${vector?.route ?? s.vectorId}` +
+        (s.payload ? chalk.dim(` — payload: ${s.payload.slice(0, 40)}`) : "")
+      );
+    }
+
+    console.log(chalk.dim("\n  Execution sandbox: Sprint 3\n"));
   });
 
 program.parse();
