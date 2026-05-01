@@ -52,11 +52,15 @@ function buildCurlArgs(
   url: string,
   method: string,
   inputName: string,
-  inputType: "query" | "body" | "header" | "cookie"
+  inputType: "query" | "body" | "header" | "cookie" | "path"
 ): string {
   switch (inputType) {
     case "query":
       return `-X ${method} "${url}?${inputName}=${SAFE_VALUE}"`;
+    case "path": {
+      const safeUrl = url.replace(`{${inputName}}`, encodeURIComponent(SAFE_VALUE));
+      return `-X ${method} "${safeUrl}"`;
+    }
     case "body":
       return `-X ${method} \\
   -H "Content-Type: application/json" \\

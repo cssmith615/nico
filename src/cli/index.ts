@@ -48,7 +48,8 @@ program
   .command("scan")
   .description("Run an autonomous pentest against a target application")
   .requiredOption("-t, --target <url>", "Target application URL")
-  .requiredOption("-s, --source <path>", "Path to application source code")
+  .option("-s, --source <path>", "Path to application source code")
+  .option("--openapi <path>", "Path to OpenAPI/Swagger JSON spec (alternative to --source)")
   .option(
     "--scope <vulns>",
     "Comma-separated vuln classes (sqli,xss,auth,ssrf,idor)",
@@ -75,9 +76,15 @@ program
       process.exit(1);
     }
 
+    if (!opts.source && !opts.openapi) {
+      console.error(chalk.red("Either --source or --openapi is required"));
+      process.exit(1);
+    }
+
     const config: ScanConfig = {
       targetUrl: opts.target,
       sourcePath: opts.source,
+      openApiPath: opts.openapi,
       scope,
       outputDir: opts.output,
       maxRetries: parseInt(opts.retries),
@@ -86,7 +93,8 @@ program
 
     console.log(chalk.bold.cyan("\n  Nico — Autonomous AI Pentester\n"));
     console.log(`  Target : ${config.targetUrl}`);
-    console.log(`  Source : ${config.sourcePath}`);
+    if (config.sourcePath) console.log(`  Source : ${config.sourcePath}`);
+    if (config.openApiPath) console.log(`  OpenAPI: ${config.openApiPath}`);
     console.log(`  Scope  : ${config.scope.join(", ")}\n`);
 
     const preflightSpinner = ora("Running pre-flight checks...").start();

@@ -40,6 +40,16 @@ async function checkSourcePath(sourcePath: string): Promise<string | null> {
   }
 }
 
+async function checkOpenApiPath(openApiPath: string): Promise<string | null> {
+  try {
+    const s = await stat(openApiPath);
+    if (!s.isFile()) return `OpenAPI path is not a file: ${openApiPath}`;
+    return null;
+  } catch {
+    return `OpenAPI spec file does not exist: ${openApiPath}`;
+  }
+}
+
 async function checkTargetReachable(targetUrl: string, timeoutMs = 5000): Promise<string | null> {
   let parsed: URL;
   try {
@@ -71,9 +81,13 @@ export async function preflight(config: ScanConfig): Promise<PreflightResult> {
   errors.push(...env.errors);
   warnings.push(...env.warnings);
 
+  const sourceOrSpecCheck = config.openApiPath
+    ? checkOpenApiPath(config.openApiPath)
+    : checkSourcePath(config.sourcePath ?? "");
+
   const checks = await Promise.all([
     checkDocker(),
-    checkSourcePath(config.sourcePath),
+    sourceOrSpecCheck,
     checkTargetReachable(config.targetUrl),
   ]);
   for (const err of checks) if (err) errors.push(err);

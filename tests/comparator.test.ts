@@ -162,4 +162,13 @@ describe("generateBaselineScript", () => {
     const script = generateBaselineScript(baseVector, "http://localhost:3000");
     expect(script).toContain("/workspace/baseline.json");
   });
+
+  it("substitutes path param directly in URL for path inputType", () => {
+    const script = generateBaselineScript(
+      { ...baseVector, inputType: "path", route: "/api/users/{id}" },
+      "http://localhost:3000"
+    );
+    expect(script).toContain("/api/users/");
+    expect(script).not.toContain("?id=");
+  });
 });

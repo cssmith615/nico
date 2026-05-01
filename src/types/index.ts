@@ -9,7 +9,7 @@ export const AttackVector = z.object({
   route: z.string(),
   method: z.string(),
   inputName: z.string(),
-  inputType: z.enum(["query", "body", "header", "cookie"]),
+  inputType: z.enum(["query", "body", "header", "cookie", "path"]),
   sourceFile: z.string().optional(),
   sourceLine: z.number().nullable().optional(),
   riskScore: z.number().min(0).max(10),
@@ -76,7 +76,8 @@ export type Finding = z.infer<typeof Finding>;
 
 export interface ScanConfig {
   targetUrl: string;
-  sourcePath: string;
+  sourcePath?: string;
+  openApiPath?: string;
   scope: VulnClass[];
   outputDir: string;
   maxRetries: number;
