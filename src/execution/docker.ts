@@ -29,7 +29,12 @@ function toDockerVolumePath(hostPath: string): string {
   return hostPath.replace(/\\/g, "/").replace(/^([A-Za-z]):/, (_, d) => `//${d.toLowerCase()}`);
 }
 
+function sandboxNetwork(): string {
+  return process.env.NICO_DOCKER_NETWORK?.trim() || "bridge";
+}
+
 export function adaptForDocker(script: string): string {
+  if (sandboxNetwork() === "host") return script;
   // localhost inside the sandbox container points at the sandbox itself, not the target app.
   // runDockerContainer maps host.docker.internal to the Docker host on Linux and Docker Desktop.
   return script
@@ -119,11 +124,11 @@ async function runDockerContainer(
   cmd: string[],
   timeoutMs: number
 ): Promise<boolean> {
+  const network = sandboxNetwork();
   const args = [
     "run",
     "--rm",
     "--name", containerName,
-    "--add-host=host.docker.internal:host-gateway",
     "--cap-drop=ALL",
     "--security-opt=no-new-privileges",
     "--read-only",
@@ -132,13 +137,16 @@ async function runDockerContainer(
     "--memory=512m",
     "--cpus=1",
     "--pids-limit=128",
-    "--network=bridge",
+    `--network=${network}`,
     "--shm-size=256m",
     "-e", "HOME=/tmp",
     "-v", `${dockerWorkdir}:/workspace:rw`,
     SANDBOX_IMAGE,
     ...cmd,
   ];
+  if (network !== "host") {
+    args.splice(4, 0, "--add-host=host.docker.internal:host-gateway");
+  }
 
   return new Promise((resolve) => {
     let settled = false;

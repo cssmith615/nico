@@ -66,10 +66,21 @@ describe("parseEvidence — no baseline", () => {
 
 describe("adaptForDocker", () => {
   it("rewrites loopback targets so sandbox containers can reach the Docker host", () => {
+    delete process.env.NICO_DOCKER_NETWORK;
     const script = "curl http://localhost:3000 && curl http://127.0.0.1:4000";
     expect(adaptForDocker(script)).toBe(
       "curl http://host.docker.internal:3000 && curl http://host.docker.internal:4000"
     );
+  });
+
+  it("keeps loopback targets when host networking is explicitly enabled", () => {
+    process.env.NICO_DOCKER_NETWORK = "host";
+    try {
+      const script = "curl http://localhost:3000";
+      expect(adaptForDocker(script)).toBe(script);
+    } finally {
+      delete process.env.NICO_DOCKER_NETWORK;
+    }
   });
 });
 
