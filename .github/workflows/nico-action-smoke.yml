@@ -67,7 +67,8 @@ jobs:
 
       - name: Start Juice Shop
         run: |
-          docker run -d --name nico-juice-shop --network host bkimminich/juice-shop@sha256:a8139c141311c7f31fcf2e611125246928f703ee42827de33983fd9425d1b2f6
+          docker network create nico-smoke
+          docker run -d --name nico-juice-shop --network nico-smoke -p 3000:3000 bkimminich/juice-shop@sha256:a8139c141311c7f31fcf2e611125246928f703ee42827de33983fd9425d1b2f6
           for i in {1..90}; do
             if curl -fsS http://localhost:3000 >/dev/null; then
               echo "Juice Shop is ready."
@@ -83,7 +84,8 @@ jobs:
         uses: ./
         env:
           NICO_DETERMINISTIC_SQLI: "1"
-          NICO_DOCKER_NETWORK: host
+          NICO_DOCKER_NETWORK: nico-smoke
+          NICO_DOCKER_HOST_ALIAS: nico-juice-shop
         with:
           target-url: http://localhost:3000
           openapi-path: ./juice-shop-openapi.json
@@ -95,4 +97,6 @@ jobs:
 
       - name: Stop Juice Shop
         if: always()
-        run: docker rm -f nico-juice-shop || true
+        run: |
+          docker rm -f nico-juice-shop || true
+          docker network rm nico-smoke || true

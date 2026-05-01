@@ -67,10 +67,20 @@ describe("parseEvidence — no baseline", () => {
 describe("adaptForDocker", () => {
   it("rewrites loopback targets so sandbox containers can reach the Docker host", () => {
     delete process.env.NICO_DOCKER_NETWORK;
+    delete process.env.NICO_DOCKER_HOST_ALIAS;
     const script = "curl http://localhost:3000 && curl http://127.0.0.1:4000";
     expect(adaptForDocker(script)).toBe(
       "curl http://host.docker.internal:3000 && curl http://host.docker.internal:4000"
     );
+  });
+
+  it("supports a custom Docker host alias for user-defined networks", () => {
+    process.env.NICO_DOCKER_HOST_ALIAS = "nico-juice-shop";
+    try {
+      expect(adaptForDocker("curl http://localhost:3000")).toBe("curl http://nico-juice-shop:3000");
+    } finally {
+      delete process.env.NICO_DOCKER_HOST_ALIAS;
+    }
   });
 
   it("keeps loopback targets when host networking is explicitly enabled", () => {

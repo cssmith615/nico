@@ -33,13 +33,19 @@ function sandboxNetwork(): string {
   return process.env.NICO_DOCKER_NETWORK?.trim() || "bridge";
 }
 
+function dockerHostAlias(): string {
+  return process.env.NICO_DOCKER_HOST_ALIAS?.trim() || "host.docker.internal";
+}
+
 export function adaptForDocker(script: string): string {
   if (sandboxNetwork() === "host") return script;
   // localhost inside the sandbox container points at the sandbox itself, not the target app.
-  // runDockerContainer maps host.docker.internal to the Docker host on Linux and Docker Desktop.
+  // By default runDockerContainer maps host.docker.internal to the Docker host. CI can
+  // override NICO_DOCKER_HOST_ALIAS to point at a sibling container on a user network.
+  const alias = dockerHostAlias();
   return script
-    .replace(/\blocalhost\b/g, "host.docker.internal")
-    .replace(/127\.0\.0\.1/g, "host.docker.internal");
+    .replace(/\blocalhost\b/g, alias)
+    .replace(/127\.0\.0\.1/g, alias);
 }
 
 export interface ContainerResult {
@@ -144,7 +150,7 @@ async function runDockerContainer(
     SANDBOX_IMAGE,
     ...cmd,
   ];
-  if (network !== "host") {
+  if (network === "bridge") {
     args.splice(4, 0, "--add-host=host.docker.internal:host-gateway");
   }
 
