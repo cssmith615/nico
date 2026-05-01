@@ -2,12 +2,22 @@ import type { AttackVector } from "../types/index.js";
 
 const SAFE_VALUE = "nico_baseline_safe_abc123";
 
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function joinTargetRoute(targetUrl: string, route: string): string {
+  const base = targetUrl.replace(/\/+$/, "");
+  const path = route.startsWith("/") ? route : `/${route}`;
+  return `${base}${path}`;
+}
+
 export function generateBaselineScript(
   vector: AttackVector,
   targetUrl: string
 ): string {
   const { route, method, inputName, inputType } = vector;
-  const url = `${targetUrl}${route}`;
+  const url = joinTargetRoute(targetUrl, route);
 
   const curlArgs = buildCurlArgs(url, method, inputName, inputType);
 
@@ -24,11 +34,11 @@ else
   ELAPSED=$(( (END - START) * 1000 ))
 fi
 
-python3 - <<'PYEOF'
+NICO_BASELINE_STATUS="$STATUS" NICO_BASELINE_ELAPSED="$ELAPSED" python3 - <<'PYEOF'
 import json, os
 
-status_raw = "$STATUS"
-elapsed_raw = "$ELAPSED"
+status_raw = os.environ.get('NICO_BASELINE_STATUS', '')
+elapsed_raw = os.environ.get('NICO_BASELINE_ELAPSED', '')
 
 try:
     body = open('/tmp/nico_baseline_body.txt').read()[:500]
@@ -55,24 +65,32 @@ function buildCurlArgs(
   inputType: "query" | "body" | "header" | "cookie" | "path"
 ): string {
   switch (inputType) {
-    case "query":
-      return `-X ${method} "${url}?${inputName}=${SAFE_VALUE}"`;
-    case "path": {
-      const safeUrl = url.replace(`{${inputName}}`, encodeURIComponent(SAFE_VALUE));
-      return `-X ${method} "${safeUrl}"`;
+    case "query": {
+      const sep = url.includes("?") ? "&" : "?";
+      const queryUrl = `${url}${sep}${encodeURIComponent(inputName)}=${encodeURIComponent(SAFE_VALUE)}`;
+      return `-X ${method} ${shellQuote(queryUrl)}`;
     }
-    case "body":
+    case "path": {
+      const placeholder = `{${inputName}}`;
+      const safeUrl = url.includes(placeholder)
+        ? url.split(placeholder).join(encodeURIComponent(SAFE_VALUE))
+        : url;
+      return `-X ${method} ${shellQuote(safeUrl)}`;
+    }
+    case "body": {
+      const body = JSON.stringify({ [inputName]: SAFE_VALUE });
       return `-X ${method} \\
   -H "Content-Type: application/json" \\
-  -d '{"${inputName}": "${SAFE_VALUE}"}' \\
-  "${url}"`;
+  -d ${shellQuote(body)} \\
+  ${shellQuote(url)}`;
+    }
     case "header":
       return `-X ${method} \\
-  -H "${inputName}: ${SAFE_VALUE}" \\
-  "${url}"`;
+  -H ${shellQuote(`${inputName}: ${SAFE_VALUE}`)} \\
+  ${shellQuote(url)}`;
     case "cookie":
       return `-X ${method} \\
-  -H "Cookie: ${inputName}=${SAFE_VALUE}" \\
-  "${url}"`;
+  -H ${shellQuote(`Cookie: ${inputName}=${SAFE_VALUE}`)} \\
+  ${shellQuote(url)}`;
   }
 }

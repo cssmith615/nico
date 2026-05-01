@@ -8,9 +8,9 @@ Claude maps the attack surface, generates the exploits, and judges the results. 
 
 ## Status
 
-**Sprint 5 complete** — full pipeline wired: orchestrator → exploits → sandbox → validation → reporter.
+**Sprint 0.2 complete** — baseline response diffing, XSS/auth/SSRF/IDOR templates, and OpenAPI/Swagger JSON ingestion.
 
-Sprint 6 in progress: end-to-end validation against OWASP Juice Shop, prompt tuning, v0.1 ship.
+Sprint 0.3 next: GitHub Actions CI/CD integration.
 
 ## Architecture
 
@@ -51,6 +51,12 @@ pnpm dev scan \
   --source ./path/to/app/source \
   --scope sqli,xss \
   --output ./reports
+
+# Or scan from an OpenAPI/Swagger JSON spec
+pnpm dev scan \
+  --target http://localhost:3000 \
+  --openapi ./openapi.json \
+  --scope sqli,xss,auth,ssrf,idor
 ```
 
 ### Flags
@@ -58,7 +64,8 @@ pnpm dev scan \
 | Flag | Default | Description |
 |---|---|---|
 | `-t, --target <url>` | required | URL of the running target application |
-| `-s, --source <path>` | required | Local path to the application source code |
+| `-s, --source <path>` | optional | Local path to the application source code |
+| `--openapi <path>` | optional | OpenAPI/Swagger JSON spec; alternative to `--source` |
 | `--scope <vulns>` | `sqli` | Comma-separated vuln classes: `sqli,xss,auth,ssrf,idor` |
 | `-o, --output <dir>` | `./reports` | Output directory for reports |
 | `--timeout <ms>` | `30000` | Sandbox timeout per exploit |
@@ -100,10 +107,10 @@ Expected confirmed findings:
 | Version | Coverage |
 |---|---|
 | v0.1 | SQL injection |
-| v0.2 | XSS |
-| v0.3 | Auth bypass |
-| v0.4 | SSRF |
-| v0.5 | IDOR, CORS, business logic |
+| v0.2 | XSS, auth bypass, SSRF, IDOR, OpenAPI ingestion |
+| v0.3 | GitHub Actions CI/CD |
+| v0.4 | Report dashboard |
+| v0.5 | CORS, business logic, correlation |
 
 ## Pre-flight checks
 
@@ -111,7 +118,7 @@ The CLI runs pre-flight before any API call:
 
 - `ANTHROPIC_API_KEY` present
 - Docker daemon reachable
-- Source path exists and is a directory
+- Source path exists and is a directory, or OpenAPI spec exists as a file
 - Target URL responds to a GET
 
 Failure exits with a clear error before burning tokens.
@@ -126,6 +133,7 @@ Each exploit runs in a fresh Docker container with:
 - Memory, CPU, and PID limits
 - Timeout enforced at host level — orphaned containers are force-removed
 - Generated scripts are syntax-checked and policy-scanned (no docker access, no package installs, no credential reads) before execution
+- Baseline request comparison suppresses script-only false positives when exploit responses do not differ meaningfully from benign requests
 
 ## Development
 

@@ -91,7 +91,7 @@ export function renderMarkdown(
   out.push("");
   out.push(`**Generated:** ${generatedAt.toISOString()}`);
   out.push(`**Target:** ${config.targetUrl}`);
-  out.push(`**Source:** ${config.sourcePath}`);
+  out.push(`**Source:** ${config.sourcePath ?? config.openApiPath ?? "(none)"}`);
   out.push(`**Scope:** ${config.scope.join(", ")}`);
   out.push("");
   out.push("## Summary");

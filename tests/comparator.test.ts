@@ -155,7 +155,7 @@ describe("generateBaselineScript", () => {
       { ...baseVector, inputType: "header" },
       "http://localhost:3000"
     );
-    expect(script).toContain('-H "id:');
+    expect(script).toContain("-H 'id:");
   });
 
   it("writes baseline.json to /workspace", () => {

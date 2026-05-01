@@ -3,11 +3,14 @@ import { z } from "zod";
 export const VulnClass = z.enum(["sqli", "xss", "auth", "ssrf", "idor"]);
 export type VulnClass = z.infer<typeof VulnClass>;
 
+export const HttpMethod = z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"]);
+export type HttpMethod = z.infer<typeof HttpMethod>;
+
 export const AttackVector = z.object({
   id: z.string(),
   vulnClass: VulnClass,
   route: z.string(),
-  method: z.string(),
+  method: HttpMethod,
   inputName: z.string(),
   inputType: z.enum(["query", "body", "header", "cookie", "path"]),
   sourceFile: z.string().optional(),

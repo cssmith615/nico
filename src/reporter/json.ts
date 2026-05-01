@@ -65,7 +65,7 @@ export function buildReportJson(
   return {
     generatedAt: generatedAt.toISOString(),
     target: config.targetUrl,
-    source: config.sourcePath,
+    source: config.sourcePath ?? config.openApiPath ?? "",
     scope: config.scope,
     summary: {
       confirmed: confirmed.length,

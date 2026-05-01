@@ -82,6 +82,37 @@ describe("ingestOpenAPI — vector extraction", () => {
     expect(xss.some((v) => v.inputName === "content" || v.inputName === "description")).toBe(true);
   });
 
+  it("extracts JSON requestBody schema properties as body inputs", async () => {
+    const spec = {
+      openapi: "3.0.0",
+      paths: {
+        "/login": {
+          post: {
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      email: { type: "string" },
+                      password: { type: "string" },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+    const bodySpecPath = join(tmp, "body.json");
+    await writeFile(bodySpecPath, JSON.stringify(spec), "utf-8");
+    const vectors = await ingestOpenAPI(bodySpecPath, ["sqli"]);
+    expect(vectors.some((v) => v.route === "/login" && v.inputName === "email" && v.inputType === "body")).toBe(true);
+    expect(vectors.some((v) => v.route === "/login" && v.inputName === "password" && v.inputType === "body")).toBe(true);
+    expect(vectors.some((v) => v.inputName === "body")).toBe(false);
+  });
+
   it("deduplicates path-level params when operation also declares same param", async () => {
     const spec = {
       openapi: "3.0.0",

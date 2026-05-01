@@ -1,13 +1,12 @@
 import { readFile } from "node:fs/promises";
-import type { AttackVector, VulnClass } from "../types/index.js";
+import { HttpMethod, type AttackVector, type VulnClass } from "../types/index.js";
 
 const SSRF_KW = ["url", "webhook", "redirect", "endpoint", "callback", "href", "uri", "host", "server", "target", "dest", "destination", "proxy", "fetch", "src", "link", "path"];
-const IDOR_KW = ["id", "uuid", "guid", "uid", "account", "record", "user", "document", "file", "resource", "object"];
 const SQLI_KW = ["q", "query", "search", "filter", "where", "sort", "order", "name", "email", "username", "login", "keyword", "term", "text", "field", "column", "username"];
 const XSS_KW = ["message", "comment", "description", "content", "body", "note", "html", "markup", "template", "bio", "about", "profile", "title", "subject"];
 
 const HTTP_METHODS = ["get", "post", "put", "delete", "patch", "options", "head"] as const;
-type HttpMethod = (typeof HTTP_METHODS)[number];
+type OpenApiMethod = (typeof HTTP_METHODS)[number];
 
 function matches(paramName: string, kw: string[]): boolean {
   const lower = paramName.toLowerCase();
@@ -22,7 +21,7 @@ function isIdLike(paramName: string): boolean {
 function inferVulnClasses(
   paramName: string,
   paramIn: string,
-  method: HttpMethod,
+  method: OpenApiMethod,
   scope: VulnClass[]
 ): VulnClass[] {
   const result: VulnClass[] = [];
@@ -49,7 +48,7 @@ function inferVulnClasses(
   return result;
 }
 
-function baseRisk(vulnClass: VulnClass, method: HttpMethod): number {
+function baseRisk(vulnClass: VulnClass, method: OpenApiMethod): number {
   const scores: Record<VulnClass, number> = { ssrf: 9, sqli: 8, auth: 8, idor: 7, xss: 6 };
   const boost = ["post", "put", "delete", "patch"].includes(method) ? 1 : 0;
   return Math.min(10, scores[vulnClass] + boost);
@@ -67,6 +66,55 @@ function mapInputType(paramIn: string): "query" | "body" | "header" | "cookie" |
 }
 
 interface OpenApiParam { name: string; in: string }
+interface OpenApiSchema {
+  type?: string;
+  properties?: Record<string, unknown>;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object";
+}
+
+function paramsFromSchema(schema: unknown): OpenApiParam[] {
+  if (!isRecord(schema)) return [];
+  const typed = schema as OpenApiSchema;
+  if (typed.properties && isRecord(typed.properties)) {
+    return Object.keys(typed.properties).map((name) => ({ name, in: "body" }));
+  }
+  return [];
+}
+
+function requestBodyParams(requestBody: unknown): OpenApiParam[] {
+  if (!isRecord(requestBody)) return [];
+  const content = requestBody.content;
+  if (!isRecord(content)) return [{ name: "body", in: "body" }];
+
+  const preferred = [
+    "application/json",
+    "application/x-www-form-urlencoded",
+    "multipart/form-data",
+  ];
+  const mediaEntries = [
+    ...preferred
+      .map((type) => [type, content[type]] as const)
+      .filter(([, media]) => media !== undefined),
+    ...Object.entries(content).filter(([type]) => !preferred.includes(type)),
+  ];
+
+  for (const [, media] of mediaEntries) {
+    if (!isRecord(media)) continue;
+    const params = paramsFromSchema(media.schema);
+    if (params.length > 0) return params;
+  }
+
+  return [{ name: "body", in: "body" }];
+}
+
+function expandBodyParam(param: OpenApiParam): OpenApiParam[] {
+  if (param.in !== "body" || !isRecord(param) || !("schema" in param)) return [param];
+  const params = paramsFromSchema(param.schema);
+  return params.length > 0 ? params : [param];
+}
 
 export async function ingestOpenAPI(specPath: string, scope: VulnClass[]): Promise<AttackVector[]> {
   if (/\.(ya?ml)$/i.test(specPath)) {
@@ -102,11 +150,11 @@ export async function ingestOpenAPI(specPath: string, scope: VulnClass[]): Promi
 
       const params: OpenApiParam[] = [
         ...pathParams,
-        ...((op.parameters as OpenApiParam[] | undefined) ?? []),
+        ...(((op.parameters as OpenApiParam[] | undefined) ?? []).flatMap(expandBodyParam)),
       ];
 
       if (op.requestBody && ["post", "put", "patch"].includes(method)) {
-        params.push({ name: "body", in: "body" });
+        params.push(...requestBodyParams(op.requestBody));
       }
 
       const seen = new Set<string>();
@@ -123,7 +171,7 @@ export async function ingestOpenAPI(specPath: string, scope: VulnClass[]): Promi
             id: `${vulnClass}-${String(counters[vulnClass]).padStart(3, "0")}`,
             vulnClass,
             route,
-            method: method.toUpperCase(),
+            method: HttpMethod.parse(method.toUpperCase()),
             inputName: param.name,
             inputType: mapInputType(param.in),
             riskScore: baseRisk(vulnClass, method),
