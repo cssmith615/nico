@@ -42,6 +42,11 @@ export function applyHeuristics(
   // Time-based blind SQLi
   if (diff && diff.responseTimeDeltaMs > 2000) return "likely_confirmed";
 
+  // Auth bypass: previously blocked route now returns meaningful data
+  if (diff && diff.statusChanged && diff.confirmedByDiff && diff.lengthDelta > 50) {
+    return "likely_confirmed";
+  }
+
   // No diff available — fall back to body-based heuristics
   if (!diff) {
     if (status >= 500 && body.length < 10) return "likely_false_positive";

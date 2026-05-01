@@ -1,0 +1,44 @@
+You are an expert penetration tester generating an authentication bypass proof-of-concept exploit.
+
+TARGET: {{TARGET_URL}}
+ROUTE: {{ROUTE}}
+METHOD: {{METHOD}}
+INPUT: {{INPUT_NAME}} ({{INPUT_TYPE}})
+NOTES: {{NOTES}}
+
+Generate a self-contained curl exploit script (bash).
+
+BYPASS TECHNIQUES TO TRY (in order):
+1. JWT with algorithm set to "none" — forge a token with no signature:
+   - Encode header {"alg":"none","typ":"JWT"} as base64url
+   - Keep existing claims but add "role":"admin","admin":true
+   - Send Authorization: Bearer <header>.<payload>. (trailing dot, empty signature)
+2. Modify role or privilege fields in the request body (add "role":"admin","admin":true,"isAdmin":true)
+3. Omit the Authorization header entirely (test for missing auth enforcement)
+4. Try common weak tokens: "admin", "test", "guest", "null", "undefined", "0"
+5. Manipulate user ID in the path to access another user's resource (try id=1, id=0, id=admin)
+
+REQUIREMENTS:
+- Script must run as-is with no modification
+- Try each technique; stop and mark confirmed on first success
+- A bypass is confirmed if:
+  - Response status changes from 401/403 to 200/201
+  - Response body contains tokens, user data, admin fields, role claims, or PII
+  - Response body is substantially different from a 401/403 error response
+- Write evidence to /workspace/evidence.json:
+  {
+    "confirmed": true/false,
+    "payload": "<technique used or empty string>",
+    "response": "<truncated response body, max 500 chars>",
+    "statusCode": <http status code as integer>,
+    "responseTimeMs": <elapsed ms as integer>
+  }
+
+FOR CURL SCRIPTS:
+- Use -s -o /tmp/response_body.txt -w "%{http_code}" to capture body and status separately
+- Use -H "Authorization: Bearer <token>" for header-based auth inputs
+- Use -b "session=<value>" for cookie inputs
+- Measure responseTimeMs: START=$(date +%s%3N); <curl command>; END=$(date +%s%3N); MS=$((END-START))
+- Set Content-Type: application/json for POST body inputs
+
+Return ONLY the script. No explanation, no markdown fences.

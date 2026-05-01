@@ -92,6 +92,46 @@ describe("applyHeuristics", () => {
     const r = makeResult({ evidence: { responseBody: "some data returned", statusCode: 200 } });
     expect(applyHeuristics(r, makeVector())).toBe("send_to_judge");
   });
+
+  it("returns likely_confirmed for auth bypass via 401→200 with substantial body change", () => {
+    const r = makeResult({
+      confirmed: true,
+      evidence: {
+        responseBody: '{"token":"eyJhbGciOiJIUzI1NiJ9...","user":{"id":1,"role":"admin"}}',
+        statusCode: 200,
+        diff: {
+          statusChanged: true,
+          lengthDelta: 90,
+          newSqlSignals: [],
+          responseTimeDeltaMs: 40,
+          jsonLengthDelta: 0,
+          confirmedByDiff: true,
+          diffSummary: "status 401 → 200; body length delta: +90",
+        },
+      },
+    });
+    expect(applyHeuristics(r, makeVector({ vulnClass: "auth" }))).toBe("likely_confirmed");
+  });
+
+  it("does NOT confirm auth bypass when body change is marginal", () => {
+    const r = makeResult({
+      confirmed: true,
+      evidence: {
+        responseBody: '{"error":"try again"}',
+        statusCode: 200,
+        diff: {
+          statusChanged: true,
+          lengthDelta: 10,
+          newSqlSignals: [],
+          responseTimeDeltaMs: 30,
+          jsonLengthDelta: 0,
+          confirmedByDiff: true,
+          diffSummary: "status 401 → 200",
+        },
+      },
+    });
+    expect(applyHeuristics(r, makeVector({ vulnClass: "auth" }))).toBe("send_to_judge");
+  });
 });
 
 // --- validateResults ---

